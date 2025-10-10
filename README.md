@@ -118,6 +118,13 @@ HY2 starts a local SOCKS proxy (127.0.0.1:1080)
 │ (VpnService) │ ◄── SOCKS 127.0.0.1   │ QUIC / HTTP3 │
 └──────────────┘                       └──────────────┘
 ```
+📘 [View Full Architecture Diagram →](./ARCHITECTURE.md)
+
+The full `ARCHITECTURE.md` document describes:
+- HY2 core modules and build layers  
+- CI/CD environments (dev, staging, prod)  
+- Gradle & Maven publishing flow  
+- Feedback / management loops and SDK lifecycle  
 
 ---
 

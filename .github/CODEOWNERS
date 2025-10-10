@@ -1,0 +1,16 @@
+# CODEOWNERS — кто автоматически получает review на PR
+
+# Общий владелец всего репозитория
+* @ktoznet
+
+# Основной код SDK
+/core/ @ktoznet
+
+# Android client layer
+/android/ @ktoznet
+
+# Docs & readme
+/docs/ @ktoznet
+
+# CI/CD workflows
+.github/workflows/ @ktoznet
