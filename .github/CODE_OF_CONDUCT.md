@@ -25,7 +25,7 @@ Project maintainers are responsible for clarifying and enforcing acceptable beha
 This Code applies within project spaces and in public spaces when an individual is representing the project.
 
 ## Enforcement
-Report abuse to **security@bereznev.tech**.  
+Report abuse to **bereznevvpn@gmail.com**.  
 For security issues, follow the private process in `SECURITY.md`.
 
 Maintainers will review and act in good faith to resolve incidents. Repeated or severe violations may result in temporary or permanent bans.
