@@ -1,0 +1,10 @@
+name: Bug report
+description: Report a bug
+title: "bug: "
+labels: [type:bug]
+body:
+  - type: textarea
+    attributes: { label: What happened?, placeholder: Steps to reproduce… }
+    validations: { required: true }
+  - type: textarea
+    attributes: { label: Logs / stacktrace }

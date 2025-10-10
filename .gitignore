@@ -1,0 +1,64 @@
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.code-workspace
+
+# Gradle
+.gradle/
+**/build/
+**/out/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/**/build/        # keep sources' build ignore
+gradle-app.setting
+
+# Kotlin/Native
+.konan/
+**/kotlin/ios/           
+
+# Android
+local.properties
+*.apk
+*.ap_*
+*.aab
+*.keystore
+*.jks
+captures/
+**/android/build/outputs/
+
+# iOS / Xcode
+DerivedData/
+*.xcuserdatad/
+*.xcscmblueprint
+*.xccheckout
+*.xcworkspace/contents.xcworkspacedata
+**/*.xcworkspace/**
+**/*.xcodeproj/project.xcworkspace/**
+Pods/
+.build/
+
+# CocoaPods artifacts (если не используешь — оставь)
+*.podspec.json
+
+# Logs
+*.log
+**/hs_err_pid*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go / gomobile (если используешь для AAR)
+go.work
+go.work.sum
+bin/
+pkg/
+*.aar
+*.jar
+*.klib
+
+# Misc
+*.orig
+*.rej

@@ -1,0 +1,29 @@
+name: Release Please
+on:
+  push:
+    branches: [main]        # можно и develop, если релизы из него
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/release-please-action@v4
+        with:
+          release-type: simple           # репо без монорепы
+          bump-minor-pre-major: true     # до 1.0.0 всё как minor
+          changelog-types: |
+            [
+              {"type":"feat","section":"Features"},
+              {"type":"fix","section":"Bug Fixes"},
+              {"type":"perf","section":"Performance"},
+              {"type":"refactor","section":"Refactoring"},
+              {"type":"docs","section":"Docs","hidden":true},
+              {"type":"ci","section":"CI","hidden":true},
+              {"type":"test","section":"Tests","hidden":true},
+              {"type":"chore","section":"Chore","hidden":true}
+            ]

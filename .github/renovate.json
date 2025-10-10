@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base",
+    ":preserveSemverRanges",
+    ":semanticCommits"
+  ],
+  "enabledManagers": ["gradle", "gomod", "github-actions"],
+  "rangeStrategy": "bump",
+  "schedule": ["weekly"],
+  "prHourlyLimit": 3,
+  "labels": ["dependencies", "auto-update"],
+  "packageRules": [
+    {
+      "matchManagers": ["gradle"],
+      "groupName": "Gradle dependencies"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}
