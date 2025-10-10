@@ -123,7 +123,7 @@ HY2 starts a local SOCKS proxy (127.0.0.1:1080)
 
 
 
-🛠 Roadmap
+🛠 Roadmap:
 	•	🔧 Java/Kotlin log sink
 	•	🧠 protect(fd) callback
 	•	🔄 Auto reconnect
