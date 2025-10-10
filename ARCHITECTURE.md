@@ -23,7 +23,7 @@ Bereznev-HY2-Core — это кроссплатформенное SDK-ядро (
 > Визуальная схема ключевых слоёв SDK и их взаимосвязей:
 
 ![Bereznev HY2 Core Architecture](docs/architecture.png)
-
+![Bereznev HY2 Core Architecture](docs/architecture_2.png)
 
 *(изображение можно экспортировать из Miro как `architecture.png` и поместить в `/docs/`)*
 
