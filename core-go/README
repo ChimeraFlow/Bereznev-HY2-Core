@@ -61,6 +61,22 @@ docs/
 
 ⸻
 
+
+### Сборка артефактов
+
+```bash
+# Android AAR
+bash scripts/build_aar.sh
+# → dist/android/hy2core-<version>.aar и hy2core.aar
+
+# iOS XCFramework
+bash scripts/build_ios.sh
+# → dist/ios/Hy2Core-<version>.xcframework и Hy2Core.xcframework
+
+
+⸻
+
+
 ⚖️ Лицензия
 
 Apache License 2.0 — см. LICENSE
