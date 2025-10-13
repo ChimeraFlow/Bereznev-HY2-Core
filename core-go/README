@@ -1,0 +1,82 @@
+🧩 Bereznev HY2 Core — core-go
+
+Type: Go Engine Module
+Role: HY2 transport core + mobile bridge (gomobile)
+Status: skeleton — базовый API и структура, без сетевого стека
+Author: Bereznev Tech
+
+⸻
+
+🚀 Назначение
+
+core-go — это Go-ядро HY2-клиента и прослойка для мобильных платформ (Android / iOS).
+Модуль компилируется через gomobile bind в AAR и XCFramework, предоставляя стабильный публичный API для Kotlin Multiplatform SDK (HY2 SDK).
+
+Архитектурная цепочка:
+
+sing / sing-tun (Go ядро: протоколы, сеть)
+    ↓
+core-go/mobile (API слой: конфиг, логи, события, health)
+    ↓
+KMM SDK (Kotlin expect/actual обёртка)
+    ↓
+Android / iOS приложения
+
+📁 Структура каталога
+core-go/
+  mobile/                 # публичный API (gomobile bind)
+    api.go               # Start/Stop/Reload/Status/Version/HealthJSON
+    config.go            # JSON-конфиг, валидация, хранение
+    logging.go           # логгер, уровни, bridge в Kotlin/Swift
+    events.go            # EventSink, emit(name, data)
+    health.go            # HealthJSON(): базовые метрики
+    lifecycle.go         # safeGo(): защита от panic
+    net_hooks.go         # Protect(fd) для Android VPNService
+    socks_bridge.go      # локальный SOCKS + tun2socks (вариант A)
+    tun_native.go        # чистый sing-tun (вариант B)
+  go.mod / go.sum
+  README.md
+scripts/
+  build_aar.sh           # сборка Android AAR
+  build_ios.sh           # сборка iOS XCFramework
+dist/
+  android/               # артефакты (.aar)
+  ios/                   # артефакты (.xcframework)
+docs/
+  android-proguard.pro   # R8 / ProGuard правила
+
+
+🧠 Потокобезопасность
+	•	Все глобальные состояния (started, cfgRaw) защищены sync.Mutex.
+	•	Все публичные вызовы — потокобезопасны.
+	•	После интеграции sing/sing-tun появятся context.Context, cancel-механика и WaitGroup для graceful-shutdown.
+
+⸻
+
+⚙️ Интеграция в SDK
+	•	Компиляция: .aar / .xcframework через gomobile bind.
+	•	Kotlin SDK (sdk-kotlin) использует их как зависимость.
+	•	expect/actual слой (HY2 object) унифицирует API.
+	•	Поддержка: Android (.aar) и iOS (.xcframework / SPM).
+
+⸻
+
+⚖️ Лицензия
+
+Apache License 2.0 — см. LICENSE
+
+⸻
+
+🧱 Ключевые факты
+	•	💡 HY2-протокол (Hysteria2 / QUIC / TLS 1.3)
+	•	🔹 Go-модули: sing, sing-tun, sing-box
+	•	📦 Артефакты: .aar / .xcframework
+	•	🌍 Совместим с Kotlin Multiplatform
+	•	🧵 Потокобезопасный API и lifecycle
+
+⸻
+
+💬 Резюме
+
+core-go — это фундамент HY2 SDK: нативное Go-ядро, мост к KMM и единый транспортный слой для Android и iOS.
+Он объединяет производительность sing-стека и гибкость Kotlin-экосистемы, создавая основу для Bereznev HY2-инфраструктуры.
