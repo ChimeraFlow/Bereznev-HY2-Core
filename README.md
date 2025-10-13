@@ -129,6 +129,12 @@ The full `ARCHITECTURE.md` document describes:
 ---
 
 
+## 🗺️ Roadmap & Tasks
+
+Хотите поучаствовать? Добро! Ниже — живой роадмап. Берите любую задачу, открывайте PR по нашему флоу (см. `CONTRIBUTING.md`), и добавляйте себя в ассайн.
+
+https://ktoznet.notion.site/28beec3558458045a35efd2bf0fa8f27?v=28beec3558458186bc17000c1e835df4&source=copy_link
+
 
 🛠 Roadmap:
 	•	🔧 Java/Kotlin log sink
