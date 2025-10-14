@@ -43,7 +43,12 @@ func resetState() {
 	logLevel = "info"
 	evt = nil
 	sink = nil
-	netHooks = nil // добавь сюда!
+
+	// правильно сбрасываем netHooks:
+	netHooks = struct {
+		mu      sync.RWMutex
+		protect func(fd int) bool
+	}{}
 }
 
 /********* tests *********/

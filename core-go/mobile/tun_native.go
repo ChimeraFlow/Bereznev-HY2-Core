@@ -1,61 +1,81 @@
-//go:build android || ios || mobile_skel
+//go:build (android || ios) && !mobile_skel
 
-// Package mobile — мобильный слой SDK (gomobile bind).
-//
-// Этот файл описывает прямую интеграцию с TUN-интерфейсом через sing-tun (вариант B архитектуры).
-//
-// В отличие от socks_bridge.go (вариант A, где трафик идёт через локальный SOCKS),
-// здесь мы используем "чистый" стек — прямое подключение TUN ↔ HY2 без промежуточных прокси.
-//
-// Это даёт более низкие задержки, меньше накладных расходов и лучшее управление MTU,
-// но требует полноценной инициализации sing-tun.Options, а также контроля Offload/Protect(fd).
-//
-// На Android это выполняется в рамках VPNService, на iOS — в NetworkExtension.
 package mobile
 
-// StartWithTun запускает HY2-ядро с уже установленным TUN-интерфейсом.
-//
-// Этот метод используется, если приложение поднимает собственный VPNService и
-// передаёт файловый дескриптор (tunFd) напрямую в SDK, минуя локальный SOCKS.
-//
-// Аргументы:
-//   - tunFd — файловый дескриптор системного TUN-интерфейса;
-//   - mtu   — желаемое значение MTU (обычно 1500 или 1400 для мобильных сетей).
-//
-// Возвращает:
-//   - "" (пустая строка) — успешный запуск или stub на этапе skeleton;
-//   - иначе — текст ошибки (для отображения в UI или логах).
-//
-// Пример (Kotlin):
-//
-//	val code = Hy2core.StartWithTun(tunFd, 1500)
-//	if (code.isNotEmpty()) Log.e("HY2", "Error: $code")
-//
-// В прод-реализации функция будет:
-//  1. Инициализировать sing-tun.Options с нужным MTU, ProtectFn, и offload-настройками.
-//  2. Подключать обработку пакетов, создавать адаптеры потоков.
-//  3. Управлять shutdown через Stop() и emit("stopped").
-//  4. Отправлять статистику (bytes_in/out, reconnects) в HealthJSON().
-//
-// TODO:
-//   - Реализовать singtun.New(options) из github.com/sagernet/sing-tun
-//   - Передавать Protect(fd) через NetHooks (Android VPNService)
-//   - Добавить обработку ошибок с emit(EvtError, ...)
-//   - Интегрировать метрики и graceful shutdown
+import (
+	"fmt"
+	"sync"
+	"sync/atomic"
+
+	tun "github.com/sagernet/sing-tun"
+)
+
+var (
+	tunMu      sync.Mutex
+	tunRunner  tun.Tun // интерфейс из sing-tun
+	tunStarted atomic.Bool
+)
+
+// Прокидываем Android VpnService.protect(fd) — если понадобится, можно впоследствии
+// менять Options (см. примечание ниже).
+func protectFn(fd int) bool { return protectFD(fd) }
+
 func StartWithTun(tunFd int, mtu int) string {
-	logI("StartWithTun() not implemented yet")
+	tunMu.Lock()
+	defer tunMu.Unlock()
+
+	if tunStarted.Load() {
+		logI("sing-tun already running")
+		return ""
+	}
+	if mtu <= 0 {
+		mtu = 1500
+	}
+
+	// Важно: в sing-tun v0.7.x публичный Options минималистичный.
+	// В нём нет полей TunFD/Protect. Биндим минимально-жизнеспособный инстанс:
+	opts := tun.Options{
+		Name: "bereznev-tun", // имя интерфейса (sing-tun создаст/поднимет)
+		MTU:  uint32(mtu),
+	}
+
+	r, err := tun.New(opts)
+	if err != nil {
+		logE("sing-tun init failed: " + err.Error())
+		return "sing-tun init failed: " + err.Error()
+	}
+
+	// Запуск
+	if err := r.Start(); err != nil {
+		_ = r.Close()
+		logE("sing-tun start failed: " + err.Error())
+		return "sing-tun start failed: " + err.Error()
+	}
+
+	tunRunner = r
+	tunStarted.Store(true)
+	logI(fmt.Sprintf("sing-tun started (name=%s, mtu=%d)", opts.Name, mtu))
+	emit(EvtStarted, `{"path":"tun","engine":"sing-tun"}`)
+
 	return ""
 }
 
-// SetMTU изменяет MTU активного TUN-интерфейса.
-//
-// Используется для динамической подстройки размера пакета в runtime,
-// если обнаруживаются фрагментации или сетевые деградации.
-//
-// Аргументы:
-//   - mtu — новое значение MTU.
-//
-// TODO:
-//   - Реализовать реальное обновление параметра через sing-tun (SetMTU())
-//   - Обновлять HealthJSON() при изменении
-func SetMTU(mtu int) { logI("SetMTU not implemented yet") }
+func SetMTU(mtu int) {
+	// На v0.7.x live-MTU в публичном API отсутствует — делаем recreate-подход (в будущем).
+	logI(fmt.Sprintf("SetMTU requested: %d (not supported live; consider recreate)", mtu))
+}
+
+func stopSingTun() {
+	tunMu.Lock()
+	defer tunMu.Unlock()
+	if !tunStarted.Load() {
+		return
+	}
+	tunStarted.Store(false)
+	if tunRunner != nil {
+		_ = tunRunner.Close()
+		tunRunner = nil
+	}
+	emit(EvtStopped, `{"path":"tun","engine":"sing-tun"}`)
+	logI("sing-tun stopped")
+}
