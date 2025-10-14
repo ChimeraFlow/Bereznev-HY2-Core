@@ -30,18 +30,6 @@ var (
 )
 
 // Коды ошибок для мобильных биндингов (удобны для Kotlin/Swift):
-const (
-	// ErrOK — успех (0).
-	ErrOK = 0
-	// ErrAlreadyRunning — ядро уже запущено и повторный Start не требуется.
-	ErrAlreadyRunning = 1
-	// ErrInvalidConfig — некорректный JSON-конфиг (валидация не прошла).
-	ErrInvalidConfig = 2
-	// ErrEngineInitFailed — ошибка инициализации сетевого стека (зарезервировано под real core).
-	ErrEngineInitFailed = 3
-	// ErrNotRunning — операция невозможна, т.к. ядро не запущено.
-	ErrNotRunning = 4
-)
 
 // Start запускает HY2-ядро с конфигурацией configJSON.
 // Возвращает пустую строку при успехе, иначе — текст ошибки.
@@ -74,19 +62,19 @@ func Start(configJSON string) string {
 //
 // Коды возврата: ErrOK, ErrAlreadyRunning, ErrInvalidConfig, ErrEngineInitFailed (на будущее).
 // Потокобезопасно.
-func StartWithCode(configJSON string) int {
+func StartWithCode(configJSON string) ErrCode {
 	mu.Lock()
 	defer mu.Unlock()
 
 	if started {
-		return ErrOK // сознательно считаем повторный запуск «не ошибкой»
+		return ErrOK // считаем idempotent запуск «не ошибкой»
 	}
 	if err := cfgSet(configJSON); err != nil {
 		return ErrInvalidConfig
 	}
 	started = true
 	logI("HY2 core started; config accepted")
-	emit("started", "{}")
+	emit(EvtStarted, "{}")
 	return ErrOK
 }
 

@@ -1,52 +1,95 @@
-//go:build android || ios || mobile_skel
+//go:build (android || ios) && !mobile_skel
 
-// Package mobile — мобильный слой SDK (gomobile bind).
-//
-// Этот файл — заглушка мостового слоя "TUN → SOCKS".
-// Он предназначен для варианта архитектуры, где Android VpnService поднимает
-// TUN-интерфейс, а весь трафик из TUN перенаправляется в локальный SOCKS
-// (обычно 127.0.0.1:1080), за которым работает HY2-клиент.
-//
-// В прод-версии здесь появится реализация tun2socks (форк или альтернатива),
-// с поддержкой UDP, защитой исходящих сокетов через NetHooks.Protect(fd),
-// метриками и управлением жизненным циклом потока.
 package mobile
 
-// StartTun2Socks запускает мост TUN→SOCKS (вариант А архитектуры).
-//
-// Аргументы:
-//   - tunFd     — файловый дескриптор TUN-интерфейса (выданный Android VpnService.establish()).
-//   - socksHost — хост локального SOCKS-прокси (обычно "127.0.0.1").
-//   - socksPort — порт локального SOCKS-прокси (обычно 1080).
-//
-// Контракт возврата:
-//   - "" (пустая строка) — успешный запуск или принятие запроса к запуску;
-//   - иначе — текст ошибки (для отображения в UI/логах).
-//
-// Потокобезопасность:
-//   - Вызов потокобезопасен с точки зрения публичного API.
-//   - Реальная реализация будет запускать фоновые горутины через safeGo(),
-//     отслеживать жизненный цикл и корректно закрывать ресурсы.
-//
-// Платформенные заметки (Android):
-//   - Перед установлением исходящих соединений мост должен вызывать protectFD(fd),
-//     чтобы исключить собственные сокеты из VPN-туннеля и избежать рекурсии.
-//   - MTU и offload лучше настраивать из tun_native.go (вариант B), если пойдём
-//     путём "чистого sing-tun".
-//
-// TODO (реализация):
-//  1. Интеграция с выбранной библиотекой tun2socks (или собственным бриджем).
-//  2. Поддержка UDP-потока (важно для QUIC/HY2).
-//  3. Метрики (bytes_in/out, rtt) и события ("reconnect", "warning").
-//  4. Корректный shutdown на Stop() и при падении канала.
-//  5. Юнит/интеграционные тесты и нагрузочные профили.
+/*
+#cgo android,linux LDFLAGS: -llog
+#include <unistd.h>
+*/
+import "C"
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"sync/atomic"
+	"time"
+
+	core "github.com/eycorsican/go-tun2socks/core"
+	"github.com/eycorsican/go-tun2socks/proxy/socks"
+)
+
+var (
+	t2sRunning atomic.Bool
+	tunFile    *os.File
+)
+
+// StartTun2Socks — реальный мост TUN→SOCKS.
 func StartTun2Socks(tunFd int, socksHost string, socksPort int) string {
-	// Пока это скелет: просто логируем намерение.
-	// В будущей реализации здесь:
-	// - инициализация бриджа,
-	// - запуск фонового копирования пакетов,
-	// - обработка ошибок с emit(EvtError, ...),
-	// - учёт метрик для HealthJSON().
-	logI("StartTun2Socks() requested")
+	if t2sRunning.Load() {
+		logI("tun2socks already running")
+		return ""
+	}
+
+	addr := fmt.Sprintf("%s:%d", socksHost, socksPort)
+	logI("starting tun2socks → " + addr)
+
+	// Открываем TUN fd
+	f := os.NewFile(uintptr(tunFd), "tun")
+	if f == nil {
+		return "invalid tun fd"
+	}
+	tunFile = f
+
+	// TCP/UDP обработчики (новый API)
+	tcpHandler := socks.NewTCPHandler(socksHost, uint16(socksPort))
+	udpHandler := socks.NewUDPHandler(socksHost, uint16(socksPort), 60*time.Second)
+	core.RegisterTCPConnHandler(tcpHandler)
+	core.RegisterUDPConnHandler(udpHandler)
+
+	// Регистрируем выход (из TUN наружу)
+	core.RegisterOutputFn(func(data []byte) (int, error) {
+		atomic.AddUint64(&bytesOut, uint64(len(data)))
+		return f.Write(data)
+	})
+
+	t2sRunning.Store(true)
+	logI("tun2socks started successfully")
+	emit("tun2socks_started", fmt.Sprintf(`{"socks":"%s"}`, addr))
+
+	// Основной цикл чтения из TUN
+	safeGo(func() {
+		buf := make([]byte, 65535)
+		for {
+			n, err := f.Read(buf)
+			if err != nil {
+				if err == io.EOF || err.Error() == "file already closed" {
+					break
+				}
+				logE("TUN read error: " + err.Error())
+				break
+			}
+			if n > 0 {
+				atomic.AddUint64(&bytesIn, uint64(n))
+				core.InputToTun(buf[:n]) // ✅ заменено с InputPacket
+			}
+		}
+		t2sRunning.Store(false)
+		logI("tun2socks stopped (read loop ended)")
+	})
+
 	return ""
+}
+
+// StopTun2Socks останавливает мост.
+func StopTun2Socks() {
+	if !t2sRunning.Load() {
+		return
+	}
+	t2sRunning.Store(false)
+	if tunFile != nil {
+		_ = tunFile.Close()
+	}
+	emit("tun2socks_stopped", "{}")
+	logI("tun2socks stopped")
 }

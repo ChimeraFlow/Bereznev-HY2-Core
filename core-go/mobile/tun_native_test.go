@@ -27,21 +27,21 @@ func TestStartWithTun_StubLogAndReturn(t *testing.T) {
 
 	err := StartWithTun(55, 1500)
 	if err != "" {
-		t.Fatalf("expected empty return (stub), got %q", err)
+		t.Fatalf("expected empty return, got %q", err)
 	}
 
-	// проверяем, что записался info-лог
 	ls.mu.Lock()
 	defer ls.mu.Unlock()
 	found := false
 	for _, l := range ls.logs {
-		if strings.Contains(l, "StartWithTun() not implemented yet") {
+		// ожидаем новую формулировку
+		if strings.Contains(l, "sing-tun created (mtu=1500)") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected info log for StartWithTun(), got %#v", ls.logs)
+		t.Fatalf("expected info log 'sing-tun created (mtu=1500)', got %#v", ls.logs)
 	}
 }
 
@@ -56,12 +56,13 @@ func TestSetMTU_StubLog(t *testing.T) {
 	defer ls.mu.Unlock()
 	found := false
 	for _, l := range ls.logs {
-		if strings.Contains(l, "SetMTU not implemented yet") {
+		// ожидаем новую формулировку
+		if strings.Contains(l, "SetMTU requested: 1400") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected log for SetMTU(), got %#v", ls.logs)
+		t.Fatalf("expected log containing 'SetMTU requested: 1400', got %#v", ls.logs)
 	}
 }

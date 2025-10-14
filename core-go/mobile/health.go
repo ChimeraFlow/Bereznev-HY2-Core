@@ -15,7 +15,10 @@
 // на стороне Kotlin/Swift.
 package mobile
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sync/atomic"
+)
 
 // Health — структура состояния SDK.
 // Это универсальная форма для сериализации данных о работе HY2-ядра.
@@ -30,14 +33,37 @@ import "encoding/json"
 //   - Reconnects — количество попыток переподключения (будущее);
 //   - QuicRttMs — средний RTT в миллисекундах (будущее).
 type Health struct {
-	Running bool   `json:"running"`
-	Engine  string `json:"engine"`
-	Version string `json:"version"`
-	// будущие поля (заполняются после интеграции sing/sing-tun)
+	Running    bool   `json:"running"`
+	Engine     string `json:"engine"`
+	Version    string `json:"version"`
 	BytesIn    uint64 `json:"bytes_in,omitempty"`
 	BytesOut   uint64 `json:"bytes_out,omitempty"`
 	Reconnects uint32 `json:"reconnects,omitempty"`
-	QuicRttMs  int    `json:"quic_rtt_ms,omitempty"`
+	QuicRttMs  int64  `json:"quic_rtt_ms,omitempty"`
+}
+
+// Глобальные счётчики (обновляются в tun2socks)
+var (
+	bytesIn    atomic.Uint64
+	bytesOut   atomic.Uint64
+	reconnects atomic.Uint32
+	quicRttMs  atomic.Int64 // последняя измеренная оценка
+)
+
+// BytesStats возвращает текущие счётчики трафика.
+// Используется HealthJSON() для вывода метрик.
+func BytesStats() (uint64, uint64) {
+	return bytesIn.Load(), bytesOut.Load()
+}
+
+// (опционально)
+// ResetBytesStats сбрасывает счётчики — пригодится при Stop() или reload.
+
+func ResetBytesStats() {
+	bytesIn.Store(0)
+	bytesOut.Store(0)
+	reconnects.Store(0)
+	quicRttMs.Store(0)
 }
 
 // HealthJSON возвращает агрегированное состояние ядра в виде JSON-строки.
@@ -62,10 +88,15 @@ type Health struct {
 //	status := hy2core.HealthJSON()
 //	println("SDK Status:", status)
 func HealthJSON() string {
+	in, out := BytesStats()
 	h := Health{
-		Running: IsRunning(),
-		Engine:  engineID,
-		Version: sdkVersion,
+		Running:    IsRunning(),
+		Engine:     engineID,
+		Version:    sdkVersion,
+		BytesIn:    in,
+		BytesOut:   out,
+		Reconnects: reconnects.Load(),
+		QuicRttMs:  quicRttMs.Load(),
 	}
 	b, _ := json.Marshal(h)
 	return string(b)

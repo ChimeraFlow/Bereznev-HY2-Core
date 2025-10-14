@@ -43,3 +43,18 @@ func TestHealthJSON_Running(t *testing.T) {
 		t.Fatalf("mismatch engine/version: %+v, Version()=%q", h, Version())
 	}
 }
+
+func TestBytesStats_ResetAndRead(t *testing.T) {
+	ResetBytesStats()
+	bytesIn.Add(123)
+	bytesOut.Add(456)
+	in, out := BytesStats()
+	if in != 123 || out != 456 {
+		t.Fatalf("got in=%d out=%d, want 123/456", in, out)
+	}
+	ResetBytesStats()
+	in, out = BytesStats()
+	if in != 0 || out != 0 {
+		t.Fatalf("after reset got in=%d out=%d, want 0/0", in, out)
+	}
+}
