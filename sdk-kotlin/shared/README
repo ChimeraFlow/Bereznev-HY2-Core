@@ -1,0 +1,114 @@
+# 🧩 Bereznev HY2 SDK — sdk-kotlin
+
+**Type:** Kotlin Multiplatform SDK  
+**Role:** HY2 transport SDK layer over Go core (`core-go`)  
+**Status:** alpha — базовый API, Android AAR интеграция, expect/actual слой  
+**Author:** Bereznev Tech
+
+⸻
+
+## 🚀 Назначение
+
+`sdk-kotlin` — это кроссплатформенный SDK-уровень для интеграции HY2-протокола  
+(Hysteria2 over QUIC/TLS 1.3) в мобильные приложения.  
+
+Он инкапсулирует взаимодействие с нативным Go-ядром (`core-go`),  
+предоставляя унифицированный API для Android и iOS через Kotlin Multiplatform (KMM).
+
+sing / sing-tun (Go core)
+↓
+core-go (gomobile AAR / XCFramework)
+↓
+sdk-kotlin (Kotlin expect/actual SDK)
+↓
+App layer (Android / iOS / Desktop)
+
+
+Модуль служит мостом между низкоуровневой сетевой логикой и удобным Kotlin API,  
+что позволяет разработчикам подключать HY2-клиент одной строкой —  
+без знания Go, JNI, NDK или gomobile.
+
+⸻
+
+## ⚙️ Структура
+sdk-kotlin/
+shared/
+src/commonMain/kotlin/tech/bereznev/hy2/
+Hy2.kt          # expect/actual фасад SDK
+Hy2Event.kt     # модель событий
+Hy2Log.kt       # логирование, уровни
+Hy2Config.kt    # JSON-хелпер для конфига
+src/androidMain/kotlin/tech/bereznev/hy2/
+Hy2Android.kt   # actual-реализация через AAR (gomobile)
+src/iosMain/kotlin/tech/bereznev/hy2/
+Hy2Ios.kt       # actual через XCFramework (interop)
+build.gradle.kts
+README.md
+
+⸻
+
+## 📦 Установка
+
+### Android (Gradle)
+```kotlin
+dependencies {
+    implementation("io.bereznev:hy2-sdk-kmm-android:0.1.0")
+}
+
+SDK автоматически подтянет зависимость на нативное Go-ядро:
+api("io.bereznev:hy2core-go-android:0.1.0")
+
+iOS (SwiftPM)
+dependencies: [
+  .package(url: "https://github.com/ChimeraFlow/Bereznev-HY2-Core", from: "0.1.0")
+]
+
+XCFramework подключается как бинарный модуль — Hy2Core.xcframework.
+
+⸻
+
+📚 API Overview
+
+Метод                                   | Описание
+Hy2.start(configJSON: String): String   | Запуск ядра
+Hy2.reload(configJSON: String): String  | Перезагрузка конфигурации
+Hy2.stop()                              | Остановка ядра
+Hy2.status(): String                    | Статус "running" / "stopped"
+Hy2.healthJSON(): String                | Метрики состояния
+Hy2.setLogLevel(level: String)          | Уровень логов
+Hy2.setLogger(callback)                 | Колбэк логов
+Hy2.onEvent(callback)                   | События (started, panic, metrics, …)
+
+⸻
+
+🧠 События и логи
+
+SDK передаёт все системные события ядра:
+	•	started, stopped, reloaded
+	•	panic, error, warning
+	•	metrics (позже — счётчики трафика и RTT)
+
+Логи можно перехватывать в Kotlin-коде и выводить в консоль, UI или файл.
+
+
+🧵 Потоковая модель
+	•	Все вызовы Hy2.* безопасны для вызова из UI-потока.
+	•	Внутренние операции ядра выполняются на стороне Go в отдельных goroutine.
+	•	SDK синхронизирует состояние через JNI/interop и события.
+
+⸻
+
+⚖️ Лицензия
+
+Apache License 2.0
+Copyright © Bereznev Tech
+
+
+💬 Резюме
+
+sdk-kotlin делает HY2-протокол доступным для KMM-приложений.
+Больше не нужно возиться с Go, JNI и сборкой AAR — достаточно вызвать Hy2.start().
+Производительность — от sing-stack, удобство — от Kotlin.
+
+Bereznev HY2 — свобода в коде.
+

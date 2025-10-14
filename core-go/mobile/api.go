@@ -1,4 +1,4 @@
-//go:build android || ios
+//go:build android || ios || mobile_skel
 
 // Package mobile — публичная прослойка для мобильных платформ (Android/iOS),
 // которая будет биндиться через gomobile в AAR/XCFramework.
