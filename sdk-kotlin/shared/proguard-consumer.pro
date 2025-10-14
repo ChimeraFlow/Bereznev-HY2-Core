@@ -1,0 +1,4 @@
+-keep class tech.bereznev.hy2.** { *; }   # javapkg из скрипта bind
+-keep class go.** { *; }
+-dontwarn go.**
+-dontwarn **.sing.**

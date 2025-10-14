@@ -1,4 +1,4 @@
-//go:build android || ios
+//go:build android || ios || mobile_skel
 
 // Package mobile — мобильный слой SDK (gomobile bind).
 //
