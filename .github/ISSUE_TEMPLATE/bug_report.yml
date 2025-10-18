@@ -3,8 +3,90 @@ description: Report a bug
 title: "bug: "
 labels: [type:bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за отчёт! Постарайтесь приложить максимум деталей: версия SDK, платформа, минимальный конфиг, логи.
+  - type: input
+    id: sdk_version
+    attributes:
+      label: SDK version
+      description: Версия core-go/mobile (SemVer из `Version()` или релиз-тег)
+      placeholder: e.g. v0.2.0
+    validations: { required: true }
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+        - Both
+    validations: { required: true }
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version / Device
+      placeholder: e.g. Android 14 / Pixel 7; iOS 17 / iPhone 13
   - type: textarea
-    attributes: { label: What happened?, placeholder: Steps to reproduce… }
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: Что ожидалось?
     validations: { required: true }
   - type: textarea
-    attributes: { label: Logs / stacktrace }
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: Что произошло на самом деле?
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+      render: bash
+    validations: { required: true }
+  - type: textarea
+    id: minimal_config
+    attributes:
+      label: Minimal config to reproduce
+      description: Минимальный JSON-конфиг (обезличенный), который воспроизводит проблему
+      placeholder: |
+        {
+          "inbounds": [],
+          "outbounds": []
+        }
+      render: json
+  - type: textarea
+    id: health
+    attributes:
+      label: HealthJSON()
+      description: Вставьте вывод HealthJSON() (если уместно)
+      render: json
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stacktrace
+      description: Включите SetLogLevel("debug") и приложите фрагмент логов
+      render: text
+  - type: checkboxes
+    id: regression
+    attributes:
+      label: Is this a regression?
+      options:
+        - label: It worked in a previous version
+        - label: Not sure
+  - type: input
+    id: previous_version
+    attributes:
+      label: Previous working version (if regression)
+      placeholder: e.g. v0.1.9
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      placeholder: Скриншоты, записи, ссылки на PR/коммиты

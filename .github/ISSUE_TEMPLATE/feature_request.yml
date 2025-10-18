@@ -15,6 +15,23 @@ body:
       label: Why is this feature important?
       placeholder: Explain the problem it solves or what it improves…
 
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: Android
+        - label: iOS
+        - label: Go core
+        - label: Tooling/CI
+        - label: Docs
+
+  - type: textarea
+    attributes:
+      label: Proposed API / JSON shape (if any)
+      placeholder: Приведите пример публичного API/конфига
+      render: json
+
   - type: textarea
     attributes:
       label: Additional context or screenshots

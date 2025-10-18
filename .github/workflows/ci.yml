@@ -10,31 +10,28 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: temurin
-
-      - name: Setup Go
+      - name: Setup Go 1.24
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22
+          go-version: '1.24.x'
 
-      - name: Cache Gradle
+      - name: Cache Go modules
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-      - name: Build Kotlin targets
-        run: ./gradlew assemble --no-daemon
-
-      - name: Run tests
-        run: ./gradlew test --no-daemon
+      - name: Run Go tests (core-go/mobile)
+        working-directory: core-go/mobile
+        run: |
+          echo "🏗️ Running Go vet/tests with tag mobile_skel..."
+          go vet -tags=mobile_skel ./...              # <- добавили тэг
+          go test -tags=mobile_skel -v ./... -timeout=5m -mod=readonly
+          echo "✅ Go tests passed successfully"
