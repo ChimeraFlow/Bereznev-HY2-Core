@@ -3,6 +3,7 @@
 package mobile
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -20,43 +21,43 @@ var (
 // менять Options (см. примечание ниже).
 func protectFn(fd int) bool { return protectFD(fd) }
 
-func StartWithTun(tunFd int, mtu int) string {
-	tunMu.Lock()
-	defer tunMu.Unlock()
+func StartWithTun(configJSON string) string {
+	mu.Lock()
+	defer mu.Unlock()
 
-	if tunStarted.Load() {
-		logI("sing-tun already running")
-		return ""
+	if err := cfgSet(configJSON); err != nil {
+		return "invalid config: " + err.Error()
 	}
-	if mtu <= 0 {
-		mtu = 1500
-	}
-
-	// Важно: в sing-tun v0.7.x публичный Options минималистичный.
-	// В нём нет полей TunFD/Protect. Биндим минимально-жизнеспособный инстанс:
-	opts := tun.Options{
-		Name: "bereznev-tun", // имя интерфейса (sing-tun создаст/поднимет)
-		MTU:  uint32(mtu),
-	}
-
-	r, err := tun.New(opts)
+	hc, err := parseHY2Config()
 	if err != nil {
-		logE("sing-tun init failed: " + err.Error())
-		return "sing-tun init failed: " + err.Error()
+		return "invalid config: " + err.Error()
 	}
 
-	// Запуск
-	if err := r.Start(); err != nil {
-		_ = r.Close()
-		logE("sing-tun start failed: " + err.Error())
-		return "sing-tun start failed: " + err.Error()
+	// 1) Поднимаем транспорт по Engine
+	tr := selectTransport(hc)
+	ctx, cancel := context.WithCancel(context.Background())
+	if tr != nil {
+		if err := tr.Start(ctx); err != nil {
+			cancel()
+			emitError(int(ErrEngineInitFailed), "hc/sing start: "+err.Error())
+			return "engine init failed: " + err.Error()
+		}
 	}
 
-	tunRunner = r
-	tunStarted.Store(true)
-	logI(fmt.Sprintf("sing-tun started (name=%s, mtu=%d)", opts.Name, mtu))
-	emit(EvtStarted, `{"path":"tun","engine":"sing-tun"}`)
+	// 2) Запускаем TUN-мост
+	// 2a) Вариант через локальный SOCKS:
+	//     port := 10808; StartLocalSocks(port); мост TUN→SOCKS на этот порт
+	// 2б) Вариант без SOCKS: передать dial hooks на основе транспорта tr
+	//     (понадобится расширить Transport интерфейс методами TCP/UDP dial).
 
+	// здесь оставь твой текущий путь (у тебя уже есть TUN→SOCKS мост):
+	// err = startTun2Socks(hc, port)
+	// if err != nil { cancel(); tr.Stop(context.Background()); return "tun start failed: " + err.Error() }
+
+	// 3) сохраним cancel в runtime, emitting done на верхнем уровне уже происходит
+	rtCancel = cancel
+	started = true
+	healthMarkStarted()
 	return ""
 }
 

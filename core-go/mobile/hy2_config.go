@@ -9,14 +9,15 @@ import (
 )
 
 type HY2Config struct {
-	Server       string   `json:"server"` // host:port
+	Engine       string   `json:"engine,omitempty"` // "sing" (default) | "hc"
+	Server       string   `json:"server"`
 	Password     string   `json:"password"`
-	SNI          string   `json:"sni,omitempty"`  // tls.server_name
-	ALPN         []string `json:"alpn,omitempty"` // default ["h3"]
+	SNI          string   `json:"sni,omitempty"`
+	ALPN         []string `json:"alpn,omitempty"`
 	UpMbps       int      `json:"up_mbps,omitempty"`
 	DownMbps     int      `json:"down_mbps,omitempty"`
 	IdleTimeoutS int      `json:"idle_timeout_s,omitempty"`
-	Mode         string   `json:"mode,omitempty"` // "tun2socks" | "native-tun"
+	Mode         string   `json:"mode,omitempty"`
 }
 
 func (c *HY2Config) defaults() {
@@ -25,6 +26,9 @@ func (c *HY2Config) defaults() {
 	}
 	if c.Mode == "" {
 		c.Mode = "tun2socks"
+	}
+	if c.Engine == "" {
+		c.Engine = "sing"
 	}
 }
 
@@ -47,11 +51,11 @@ func parseHY2Config() (HY2Config, error) {
 	if len(cfgRaw) == 0 {
 		return hc, errors.New("empty config")
 	}
-	// попытка простого JSON → struct; при необходимости заменишь на sjson.Node навигацию.
 	if err := jsonUnmarshal(cfgRaw, &hc); err != nil {
 		return hc, err
 	}
 	hc.defaults()
+	hy2TestFixup(&hc) // ⬅️ добавь эту строку
 	return hc, hc.validate()
 }
 
