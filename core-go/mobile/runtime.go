@@ -21,18 +21,17 @@ func runtimeStart() error {
 		return nil
 	}
 
-	var haveHY2 bool
 	hc, err := parseHY2Config()
-	if err == nil {
-		rtTrans = newTransportSingHY2(hc)
-		haveHY2 = true
-	} else {
-		rtTrans = nil
+	if err != nil {
+		return err
 	}
 
-	// 3) контекст и запуск
+	// Выбор реализации переносим в selectTransport (см. ниже)
+	rtTrans = selectTransport(hc)
+
+	// контекст и запуск
 	ctx, cancel := context.WithCancel(context.Background())
-	if haveHY2 {
+	if rtTrans != nil {
 		if err := rtTrans.Start(ctx); err != nil {
 			cancel()
 			return err
@@ -52,7 +51,7 @@ func runtimeStop() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if rtTrans != nil {
-		_ = rtTrans.Stop(ctx) // best-effort
+		_ = rtTrans.Stop(ctx)
 		rtTrans = nil
 	}
 	rtCancel()
@@ -67,9 +66,5 @@ func runtimeStatusInto(h *Health) {
 	st := rtTrans.Status()
 	if st.RTTms > 0 {
 		h.QuicRttMs = st.RTTms
-	}
-	if st.ALPN != "" { /* опционально дописать в Health */
-	}
-	if st.SNI != "" { /* опционально дописать в Health */
 	}
 }
