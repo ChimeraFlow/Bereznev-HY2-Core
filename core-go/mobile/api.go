@@ -41,15 +41,26 @@ var (
 func Start(configJSON string) string {
 	mu.Lock()
 	defer mu.Unlock()
+
+	// идемпотентность: повторный Start не считается ошибкой
 	if started {
 		return ""
 	}
+
+	// 1) валидируем и сохраняем конфиг
 	if err := cfgSet(configJSON); err != nil {
 		return "invalid config: " + err.Error()
 	}
+
+	// 2) поднимаем рантайм (sing/hy2 транспорт и пр.)
+	if err := runtimeStart(); err != nil {
+		emitError(int(ErrEngineInitFailed), err.Error())
+		return "engine init failed: " + err.Error()
+	}
+
 	started = true
-	logI("HY2 core started; config accepted")
-	emit("started", "{}")
+	healthMarkStarted()
+	logI("HY2 core started")
 	return ""
 }
 
@@ -69,9 +80,12 @@ func StartWithCode(configJSON string) ErrCode {
 	if err := cfgSet(configJSON); err != nil {
 		return ErrInvalidConfig
 	}
+	if err := runtimeStart(); err != nil {
+		emitError(int(ErrEngineInitFailed), err.Error())
+		return ErrEngineInitFailed
+	}
 	started = true
 	logI("HY2 core started; config accepted")
-	emit(EvtStarted, "{}")
 	return ErrOK
 }
 
@@ -83,10 +97,33 @@ func Reload(configJSON string) string {
 	mu.Lock()
 	defer mu.Unlock()
 
+	// 1) валидируем и сохраняем конфиг (если невалиден — ничего не меняем)
 	if err := cfgSet(configJSON); err != nil {
 		return "invalid config: " + err.Error()
 	}
-	emit("reloaded", "{}")
+	// 2) если не запущено — просто отдадим событие перезагрузки конфигурации
+	if !started {
+		emit(EvtReloaded, "{}")
+		return ""
+	}
+
+	// 3) перезапускаем рантайм по новому конфигу
+	// 3) если новый конфиг не задаёт HY2 — не трогаем транспорт
+	if _, err := parseHY2Config(); err != nil {
+		emit(EvtReloaded, "{}")
+		logI("config reloaded (no HY2 changes)")
+		return ""
+	}
+	// 4) иначе — перезапускаем рантайм
+	runtimeStop()
+	if err := runtimeStart(); err != nil {
+		emitError(int(ErrEngineInitFailed), err.Error())
+		started = false
+		return "engine init failed: " + err.Error()
+	}
+	started = true
+	emit(EvtReloaded, "{}")
+	logI("HY2 core reloaded")
 	return ""
 }
 
@@ -99,7 +136,9 @@ func Stop() {
 	if !started {
 		return
 	}
+	runtimeStop()
 	started = false
+	healthMarkStopped()
 	emit("stopped", "{}")
 	logI("HY2 core stopped")
 }

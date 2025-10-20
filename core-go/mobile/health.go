@@ -18,6 +18,7 @@ package mobile
 import (
 	"encoding/json"
 	"sync/atomic"
+	"time"
 )
 
 // Health — структура состояния SDK.
@@ -40,6 +41,9 @@ type Health struct {
 	BytesOut   uint64 `json:"bytes_out,omitempty"`
 	Reconnects uint32 `json:"reconnects,omitempty"`
 	QuicRttMs  int64  `json:"quic_rtt_ms,omitempty"`
+	UptimeS    int64  `json:"uptime_s,omitempty"`
+	SNI        string `json:"sni,omitempty"`
+	ALPN       string `json:"alpn,omitempty"`
 }
 
 // Глобальные счётчики (обновляются в tun2socks)
@@ -48,6 +52,9 @@ var (
 	bytesOut   atomic.Uint64
 	reconnects atomic.Uint32
 	quicRttMs  atomic.Int64 // последняя измеренная оценка
+	startUnix  atomic.Int64
+	sniValue   atomic.Value // string
+	alpnValue  atomic.Value // string
 )
 
 // BytesStats возвращает текущие счётчики трафика.
@@ -64,6 +71,22 @@ func ResetBytesStats() {
 	bytesOut.Store(0)
 	reconnects.Store(0)
 	quicRttMs.Store(0)
+}
+
+func healthMarkStarted() {
+	startUnix.Store(time.Now().Unix())
+}
+
+func healthMarkStopped() {
+	startUnix.Store(0)
+}
+func healthSetIdentity(sni, alpn string) {
+	if sni != "" {
+		sniValue.Store(sni)
+	}
+	if alpn != "" {
+		alpnValue.Store(alpn)
+	}
 }
 
 // HealthJSON возвращает агрегированное состояние ядра в виде JSON-строки.
@@ -98,6 +121,26 @@ func HealthJSON() string {
 		Reconnects: reconnects.Load(),
 		QuicRttMs:  quicRttMs.Load(),
 	}
+
+	if su := startUnix.Load(); su > 0 {
+		now := time.Now().Unix()
+		if now > su {
+			h.UptimeS = now - su
+		}
+	}
+
+	if v := sniValue.Load(); v != nil {
+		if s, _ := v.(string); s != "" {
+			h.SNI = s
+		}
+	}
+
+	if v := alpnValue.Load(); v != nil {
+		if s, _ := v.(string); s != "" {
+			h.ALPN = s
+		}
+	}
+
 	b, _ := json.Marshal(h)
 	return string(b)
 }

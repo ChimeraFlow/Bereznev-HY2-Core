@@ -10,15 +10,21 @@ import (
 func TestCfgSetAndGet_ValidConfig(t *testing.T) {
 	resetState()
 
-	jsonStr := `{ "log": { "level": "info" }, "inbounds": [], "outbounds": [] }`
+	jsonStr := `{
+  // minimal HY2 config (sing-box style allowed: comments ok)
+  "server":   "example.com:443",
+  "password": "testpass",
+  "alpn":     ["h3"],
+  "mode":     "tun2socks"
+}`
 
 	if err := cfgSet(jsonStr); err != nil {
 		t.Fatalf("cfgSet(valid) unexpected error: %v", err)
 	}
 
 	got := string(cfgGet())
-	if !strings.Contains(got, `"log"`) {
-		t.Fatalf("cfgGet() = %q, want it to contain 'log'", got)
+	if !strings.Contains(got, `"server"`) {
+		t.Fatalf("cfgGet() = %q, want it to contain 'server'", got)
 	}
 
 	// Проверим, что возвращается копия, а не ссылка
