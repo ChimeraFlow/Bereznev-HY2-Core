@@ -1,0 +1,57 @@
+name: Release-Android
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+        env:
+          PATH: ${{ env.PATH }}:$HOME/go/bin
+
+      - name: Build AAR (Android)
+        run: |
+          cd core-go/mobile
+          BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          VERSION_TAG=${GITHUB_REF_NAME}
+          echo "📦 Building BereznevHY2.aar version=${VERSION_TAG}"
+
+          go build -ldflags "-X 'mobile.BuildTime=${BUILD_TIME}' \
+                             -X 'mobile.CommitHash=${COMMIT_HASH}' \
+                             -X 'mobile.SdkVersion=${VERSION_TAG}'" .
+
+          gomobile bind -target=android -o BereznevHY2.aar
+
+      - name: Upload Android artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: core-go/mobile/BereznevHY2.aar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

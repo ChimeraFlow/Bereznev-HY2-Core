@@ -1,0 +1,78 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-release:
+    runs-on: macos-14   # <— НУЖНО для iOS/SwiftPM
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Setup Java (AAR)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Setup Android SDK (AAR)
+        uses: android-actions/setup-android@v3
+
+      - name: Install gomobile toolchain
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          gomobile init
+        env:
+          PATH: ${{ env.PATH }}:$HOME/go/bin
+
+      # -------------------- iOS XCFRAMEWORK --------------------
+      - name: Build XCFramework (iOS)
+        run: |
+          cd core-go/mobile
+          BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          VERSION_TAG=${GITHUB_REF_NAME}
+          echo "📦 Building BereznevHY2.xcframework version=${VERSION_TAG}"
+
+          go build -ldflags "-X 'mobile.BuildTime=${BUILD_TIME}' \
+                             -X 'mobile.CommitHash=${COMMIT_HASH}' \
+                             -X 'mobile.SdkVersion=${VERSION_TAG}'" .
+
+          gomobile bind -target=ios -o BereznevHY2.xcframework
+          cd ..
+          ditto -c -k --sequesterRsrc --keepParent core-go/mobile/BereznevHY2.xcframework BereznevHY2.xcframework.zip
+
+      - name: Compute SwiftPM checksum
+        id: checksum
+        run: |
+          cd core-go
+          swift package compute-checksum BereznevHY2.xcframework.zip > checksum.txt
+          echo "checksum=$(cat checksum.txt)" >> $GITHUB_OUTPUT
+
+      - name: Prepare Package.swift from template
+        run: |
+          cp packaging/Package.swift.tmpl Package.swift
+          sed -i.bak "s|__URL__|https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/BereznevHY2.xcframework.zip|" Package.swift
+          sed -i.bak "s|__CHECKSUM__|${{ steps.checksum.outputs.checksum }}|" Package.swift
+          rm Package.swift.bak
+          cat Package.swift
+
+      - name: Upload iOS artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            core-go/BereznevHY2.xcframework.zip
+            Package.swift
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

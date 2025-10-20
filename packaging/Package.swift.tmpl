@@ -1,0 +1,22 @@
+// swift-tools-version:5.9
+import PackageDescription
+
+let package = Package(
+    name: "BereznevHY2",
+    platforms: [
+        .iOS(.v13)
+    ],
+    products: [
+        .library(
+            name: "BereznevHY2",
+            targets: ["BereznevHY2"]
+        )
+    ],
+    targets: [
+        .binaryTarget(
+            name: "BereznevHY2",
+            url: "__URL__",
+            checksum: "__CHECKSUM__"
+        )
+    ]
+)

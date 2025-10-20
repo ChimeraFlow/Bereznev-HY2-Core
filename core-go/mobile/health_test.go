@@ -18,11 +18,11 @@ func TestHealthJSON_Stopped(t *testing.T) {
 	if h.Running {
 		t.Fatalf("expected Running=false, got true")
 	}
-	if h.Engine != engineID {
-		t.Fatalf("Engine=%q, want %q", h.Engine, engineID)
+	if h.Engine != EngineID {
+		t.Fatalf("Engine=%q, want %q", h.Engine, EngineID)
 	}
-	if h.Version != sdkVersion {
-		t.Fatalf("Version=%q, want %q", h.Version, sdkVersion)
+	if h.Version != SdkVersion {
+		t.Fatalf("Version=%q, want %q", h.Version, SdkVersion)
 	}
 }
 
@@ -39,7 +39,7 @@ func TestHealthJSON_Running(t *testing.T) {
 	if !h.Running {
 		t.Fatalf("expected Running=true, got false")
 	}
-	if h.Engine != engineID || !strings.Contains(Version(), h.Version) {
+	if h.Engine != EngineID || !strings.Contains(Version(), h.Version) {
 		t.Fatalf("mismatch engine/version: %+v, Version()=%q", h, Version())
 	}
 }

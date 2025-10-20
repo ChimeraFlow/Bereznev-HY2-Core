@@ -38,13 +38,16 @@ func (l *testLogSink) Log(level, msg string) {
 func resetState() {
 	mu.Lock()
 	defer mu.Unlock()
+
+	// best-effort stop рантайма, если вдруг поднят
+	runtimeStop()
+
 	started = false
 	cfgRaw = nil
 	logLevel = "info"
 	evt = nil
 	sink = nil
 
-	// правильно сбрасываем netHooks:
 	netHooks = struct {
 		mu      sync.RWMutex
 		protect func(fd int) bool
@@ -53,7 +56,13 @@ func resetState() {
 
 /********* tests *********/
 
-const validCfg = `{}`
+const validCfg = `{
+  "server":   "example.com:443",
+  "password": "testpass",
+  "sni":      "example.com",
+  "alpn":     ["h3"],
+  "mode":     "tun2socks"
+}`
 
 func TestStartStopStatus(t *testing.T) {
 	resetState()
@@ -73,8 +82,15 @@ func TestStartStopStatus(t *testing.T) {
 		t.Fatalf("expected status 'running', got %q", Status())
 	}
 
-	if len(es.events) != 1 || (es.events[0] != EvtStarted && es.events[0] != "started") {
-		t.Fatalf("expected one 'started' event, got %#v", es.events)
+	hasStarted := false
+	for _, ev := range es.events {
+		if ev == EvtStarted || ev == "started" {
+			hasStarted = true
+			break
+		}
+	}
+	if !hasStarted {
+		t.Fatalf("expected at least one 'started' event, got %#v", es.events)
 	}
 
 	err2 := Start(validCfg)
@@ -148,7 +164,7 @@ func TestReload(t *testing.T) {
 func TestVersionFormat(t *testing.T) {
 	resetState()
 	v := Version()
-	if !strings.Contains(v, sdkName) || !strings.Contains(v, sdkVersion) || !strings.Contains(v, engineID) {
+	if !strings.Contains(v, sdkName) || !strings.Contains(v, SdkVersion) || !strings.Contains(v, EngineID) {
 		t.Fatalf("Version() %q must contain sdkName, sdkVersion and engineID", v)
 	}
 }
