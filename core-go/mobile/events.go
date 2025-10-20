@@ -33,6 +33,8 @@ import "fmt"
 // ```
 type EventSink interface{ OnEvent(name, data string) }
 
+func (f EventSinkFunc) OnEvent(name, payload string) { f(name, payload) }
+
 var (
 	// evt — текущий зарегистрированный EventSink.
 	// Если не установлен, события будут проигнорированы.
@@ -70,13 +72,27 @@ func emit(name, data string) {
 // Константы имён событий.
 // Определены централизованно, чтобы избежать расхождений между слоями.
 const (
-	EvtStarted   = "started"   // ядро запущено
-	EvtStopped   = "stopped"   // ядро остановлено
-	EvtReloaded  = "reloaded"  // конфигурация перезагружена
-	EvtPanic     = "panic"     // panic() перехвачена
-	EvtError     = "error"     // ошибка выполнения
-	EvtReconnect = "reconnect" // переподключение / попытка восстановления
+	EvtStarted      = "started"   // ядро запущено
+	EvtStopped      = "stopped"   // ядро остановлено
+	EvtReloaded     = "reloaded"  // конфигурация перезагружена
+	EvtPanic        = "panic"     // panic() перехвачена
+	EvtError        = "error"     // ошибка выполнения
+	EvtReconnect    = "reconnect" // переподключение / попытка восстановления
+	EvtReconnecting = "reconnecting"
+	EvtReconnected  = "reconnected"
 )
+
+type evtReconnecting struct {
+	Reason  string `json:"reason"`
+	Attempt int    `json:"attempt"`
+	NextMs  int    `json:"next_ms"`
+}
+
+type evtReconnected struct {
+	RttMs int64 `json:"rtt_ms"`
+}
+
+type EventSinkFunc func(name, payload string)
 
 // emitError — отправляет стандартное событие об ошибке.
 // Используется при ошибках конфигурации, сетевых сбоях и т.п.

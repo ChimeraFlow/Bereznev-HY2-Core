@@ -4,47 +4,26 @@ package mobile
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 )
 
-// точная копия «скелета» из transport_sing.go, но под тегом mobile_skel,
-// чтобы сборка и тесты проходили в окружении без android/ios.
+var testStartOnceFailCount atomic.Int32
 
-type transportSingHY2 struct {
-	rtt   atomic.Int64
-	sni   string
-	alpn  string
-	rem   string
-	lastE atomic.Value // string
-}
+// тестовый хук — используем его в reconnect_test.go
+func testSetStartFailCount(n int32) { testStartOnceFailCount.Store(n) }
 
-func newTransportSingHY2(cfg HY2Config) *transportSingHY2 {
-	t := &transportSingHY2{sni: cfg.SNI}
-	if len(cfg.ALPN) > 0 {
-		t.alpn = cfg.ALPN[0]
+func startOnceSing(t *transportSingHY2, ctx context.Context) error {
+	if testStartOnceFailCount.Load() > 0 {
+		testStartOnceFailCount.Add(-1)
+		return errors.New("mock dial fail")
 	}
-	return t
-}
-
-func (t *transportSingHY2) Start(ctx context.Context) error {
-	// заглушка
+	// успех: соединение «поднялось»
+	t.rtt.Store(42)
+	t.rem = "mock.remote:443"
 	return nil
 }
 
-func (t *transportSingHY2) Stop(ctx context.Context) error {
-	// заглушка
-	return nil
-}
-
-func (t *transportSingHY2) Status() TransportStatus {
-	st := TransportStatus{
-		RTTms:  t.rtt.Load(),
-		Remote: t.rem,
-		ALPN:   t.alpn,
-		SNI:    t.sni,
-	}
-	if v := t.lastE.Load(); v != nil {
-		st.LastErr = v.(string)
-	}
-	return st
+func isAliveSing(t *transportSingHY2) bool {
+	return t.rtt.Load() > 0
 }

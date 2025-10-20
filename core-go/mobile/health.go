@@ -34,16 +34,18 @@ import (
 //   - Reconnects — количество попыток переподключения (будущее);
 //   - QuicRttMs — средний RTT в миллисекундах (будущее).
 type Health struct {
-	Running    bool   `json:"running"`
-	Engine     string `json:"engine"`
-	Version    string `json:"version"`
-	BytesIn    uint64 `json:"bytes_in,omitempty"`
-	BytesOut   uint64 `json:"bytes_out,omitempty"`
-	Reconnects uint32 `json:"reconnects,omitempty"`
-	QuicRttMs  int64  `json:"quic_rtt_ms,omitempty"`
-	UptimeS    int64  `json:"uptime_s,omitempty"`
-	SNI        string `json:"sni,omitempty"`
-	ALPN       string `json:"alpn,omitempty"`
+	Running       bool   `json:"running"`
+	Engine        string `json:"engine"`
+	Version       string `json:"version"`
+	BytesIn       uint64 `json:"bytes_in,omitempty"`
+	BytesOut      uint64 `json:"bytes_out,omitempty"`
+	Reconnects    uint32 `json:"reconnects,omitempty"`
+	QuicRttMs     int64  `json:"quic_rtt_ms,omitempty"`
+	UptimeS       int64  `json:"uptime_s,omitempty"`
+	SNI           string `json:"sni,omitempty"`
+	ALPN          string `json:"alpn,omitempty"`
+	LastBackoffMs int64  `json:"last_backoff_ms"`
+	LastErrorTs   int64  `json:"last_error_ts"`
 }
 
 // Глобальные счётчики (обновляются в tun2socks)
@@ -55,6 +57,10 @@ var (
 	startUnix  atomic.Int64
 	sniValue   atomic.Value // string
 	alpnValue  atomic.Value // string
+
+	// ⬇️ новое
+	lastBackoffMs atomic.Int64
+	lastErrTs     atomic.Int64
 )
 
 // BytesStats возвращает текущие счётчики трафика.
@@ -62,6 +68,9 @@ var (
 func BytesStats() (uint64, uint64) {
 	return bytesIn.Load(), bytesOut.Load()
 }
+
+func setLastBackoffMs(ms int64) { lastBackoffMs.Store(ms) }
+func setLastErrTs(ts int64)     { lastErrTs.Store(ts) }
 
 // (опционально)
 // ResetBytesStats сбрасывает счётчики — пригодится при Stop() или reload.
@@ -121,7 +130,8 @@ func HealthJSON() string {
 		Reconnects: reconnects.Load(),
 		QuicRttMs:  quicRttMs.Load(),
 	}
-
+	h.LastBackoffMs = lastBackoffMs.Load()
+	h.LastErrorTs = lastErrTs.Load()
 	if su := startUnix.Load(); su > 0 {
 		now := time.Now().Unix()
 		if now > su {
