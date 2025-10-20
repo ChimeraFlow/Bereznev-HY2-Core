@@ -23,10 +23,7 @@ var (
 	started bool
 
 	// sdkName/sdVersion/engineID — метаданные SDK, видимые в Version().
-	sdkName    = "Bereznev-HY2-Core"
-	sdkVersion = "0.1.0"
-	// engineID: в skeleton — "skeleton"; после интеграции sing/sing-tun поменяем.
-	engineID = "skeleton"
+	sdkName = "Bereznev-HY2-Core"
 )
 
 // Коды ошибок для мобильных биндингов (удобны для Kotlin/Swift):
@@ -124,8 +121,3 @@ func IsRunning() bool {
 	defer mu.Unlock()
 	return started
 }
-
-// Version возвращает человекочитаемую строку вида:
-// "Bereznev-HY2-Core 0.1.0 (skeleton)".
-// Полезно для логов, health-эндпоинтов и экранов «О приложении».
-func Version() string { return sdkName + " " + sdkVersion + " (" + engineID + ")" }

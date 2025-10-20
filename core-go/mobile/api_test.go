@@ -148,7 +148,7 @@ func TestReload(t *testing.T) {
 func TestVersionFormat(t *testing.T) {
 	resetState()
 	v := Version()
-	if !strings.Contains(v, sdkName) || !strings.Contains(v, sdkVersion) || !strings.Contains(v, engineID) {
+	if !strings.Contains(v, sdkName) || !strings.Contains(v, SdkVersion) || !strings.Contains(v, EngineID) {
 		t.Fatalf("Version() %q must contain sdkName, sdkVersion and engineID", v)
 	}
 }

@@ -91,8 +91,8 @@ func HealthJSON() string {
 	in, out := BytesStats()
 	h := Health{
 		Running:    IsRunning(),
-		Engine:     engineID,
-		Version:    sdkVersion,
+		Engine:     EngineID,
+		Version:    SdkVersion,
 		BytesIn:    in,
 		BytesOut:   out,
 		Reconnects: reconnects.Load(),
