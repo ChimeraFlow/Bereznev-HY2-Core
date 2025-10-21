@@ -2,7 +2,11 @@
 
 package version
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/mobile"
+)
 
 // Эти значения будут переопределяться через флаги линковки (ldflags) при сборке CI.
 var (
@@ -14,5 +18,5 @@ var (
 
 // Version — возвращает человекочитаемую строку версии SDK.
 func Version() string {
-	return fmt.Sprintf("%s %s (%s)", sdkName, SdkVersion, EngineID)
+	return fmt.Sprintf("%s %s (%s)", mobile.SdkName, SdkVersion, EngineID)
 }

@@ -11,6 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/netstack/protect"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/runtime"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/telemetry"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/transport"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/transport/sing"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/config"
 	hcclient "github.com/apernet/hysteria/core/client"
 )
 
@@ -30,10 +36,10 @@ type transportHC struct {
 
 	cli   *hcclient.Client
 	pconn net.PacketConn
-	cfg   HY2Config
+	cfg   config.HY2Config
 }
 
-func newTransportHC(cfg HY2Config) Transport {
+func NewTransportHC(cfg config.HY2Config) transport.Transport {
 	t := &transportHC{cfg: cfg, sni: cfg.SNI}
 	if len(cfg.ALPN) > 0 {
 		t.alpn = cfg.ALPN[0]
@@ -57,10 +63,10 @@ func (t *transportHC) Start(parent context.Context) error {
 	t.ctx, t.cancel = ctx, cancel
 	t.closed.Store(false)
 
-	_ = t.startOnce(ctx)
+	_ = t.StartOnce(ctx)
 
 	t.superWg.Add(1)
-	go t.supervisor()
+	go t.Supervisor()
 	return nil
 }
 
@@ -102,8 +108,8 @@ func (t *transportHC) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (t *transportHC) Status() TransportStatus {
-	st := TransportStatus{
+func (t *transportHC) Status() transport.TransportStatus {
+	st := transport.TransportStatus{
 		RTTms:  t.rtt.Load(),
 		Remote: t.rem,
 		ALPN:   t.alpn,
@@ -115,24 +121,26 @@ func (t *transportHC) Status() TransportStatus {
 	return st
 }
 
-func (t *transportHC) supervisor() {
+func (t *transportHC) Supervisor() {
 	defer t.superWg.Done()
-	bo := newBackoffState()
+	bo := runtime.NewBackoffState()
 
 	for {
 		if t.closed.Load() {
 			return
 		}
-		if t.isAlive() {
+		if sing.IsAliveSing() {
 			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 
-		next := bo.next()
-		emit(EvtReconnecting, toJSON(evtReconnecting{
-			Reason: "lost", Attempt: bo.attempt, NextMs: int(next.Milliseconds()),
-		}))
-		setLastBackoffMs(next.Milliseconds())
+		next := bo.Next()
+		telemetry.Emit(
+			telemetry.EvtReconnecting,
+			sing.ToJSON(sing.ReconnectingPayload{
+				Reason: "lost", Attempt: bo.Attempt, NextMs: int(next.Milliseconds()),
+			}))
+		telemetry.SetLastBackoffMs(next.Milliseconds())
 
 		timer := time.NewTimer(next)
 		select {
@@ -145,31 +153,31 @@ func (t *transportHC) supervisor() {
 		if t.closed.Load() {
 			return
 		}
-		if err := t.startOnce(t.ctx); err != nil {
+		if err := t.StartOnce(t.ctx); err != nil {
 			t.lastE.Store("reconnect: " + err.Error())
-			setLastErrTs(time.Now().Unix())
+			telemetry.SetLastErrTs(time.Now().Unix())
 			continue
 		}
-		bo.reset()
-		reconnects.Add(1)
-		emit(EvtReconnected, toJSON(evtReconnected{RttMs: t.rtt.Load()}))
+		bo.Reset()
+		telemetry.Reconnects.Add(1)
+		telemetry.Emit(telemetry.EvtReconnected, sing.ToJSON(sing.ReconnectedPayload{RttMs: t.rtt.Load()}))
 	}
 }
 
-func (t *transportHC) isAlive() bool {
+func (t *transportHC) IsAlive() bool {
 	// достаточно простого критерия; позже можно добавить lastRTTAt с таймаутом
 	return t.rtt.Load() > 0
 }
 
 // --- ключевая точка: запуск Hysteria2 Core + Protect(fd) ---
 
-func (t *transportHC) startOnce(ctx context.Context) error {
+func (t *transportHC) StartOnce(ctx context.Context) error {
 	// 1) UDP PacketConn с Protect(fd) — это твой protect_dial.go
 	if t.pconn != nil {
 		_ = t.pconn.Close()
 		t.pconn = nil
 	}
-	pc, err := protectedPacketConn(ctx)
+	pc, err := protect.ProtectedPacketConn(ctx)
 	if err != nil {
 		return fmt.Errorf("udp listen: %w", err)
 	}
@@ -212,7 +220,7 @@ func (t *transportHC) startOnce(ctx context.Context) error {
 	t.rem = t.cfg.Server
 	t.cli = cli
 	t.pconn = pc
-	healthSetIdentity(t.cfg.SNI, t.alpn)
+	telemetry.HealthSetIdentity(t.cfg.SNI, t.alpn)
 
 	// (опционально) пульс RTT раз в несколько секунд:
 	// go t.rttProbeLoop()

@@ -1,4 +1,4 @@
-//go:build android || ios || mobile_skel
+// go:build android || ios || mobile_skel
 
 // Package mobile — мобильный слой SDK (gomobile bind).
 // Этот файл реализует утилиту safeGo — защищённый запуск горутин.
@@ -11,7 +11,12 @@
 // будет перехвачена, залогирована и отправлена как событие "panic" через EventSink.
 package runtime
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/telemetry"
+	logpkg "github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/logging"
+)
 
 // safeGo запускает переданную функцию fn() в отдельной горутине
 // с автоматическим перехватом panic и уведомлением через события SDK.
@@ -37,12 +42,12 @@ import "fmt"
 // Побочные эффекты:
 //   - Создаёт новую горутину;
 //   - В случае panic пишет лог уровня "error" и триггерит событие "panic".
-func safeGo(fn func()) {
+func SafeGo(fn func()) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logE(fmt.Sprintf("panic: %v", r))
-				emit("panic", `{"msg":"panic recovered"}`)
+				logpkg.LogE(fmt.Sprintf("panic: %v", r))
+				telemetry.Emit("panic", `{"msg":"panic recovered"}`)
 			}
 		}()
 		fn()

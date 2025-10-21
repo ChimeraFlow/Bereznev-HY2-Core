@@ -1,95 +1,42 @@
-//go:build android || ios || mobile_skel
+// core-go/pkg/logging/logging.go
+package protect
 
-// Package mobile — мобильный слой SDK (gomobile bind).
-//
-// Этот файл реализует систему логирования SDK-уровня, служащую мостом
-// между Go-ядром и платформенным слоем (Kotlin/Swift).
-//
-// Модуль logging отвечает за:
-//   - регистрацию внешнего лог-приёмника (LogSink),
-//   - фильтрацию по уровню важности,
-//   - отправку логов из Go в мобильное приложение,
-//   - удобные шорткаты logD / logI / logW / logE.
-//
-// В отличие от стандартных логгеров Go, данный модуль не пишет в stdout —
-// он полностью делегирует вывод в платформенный слой через интерфейс LogSink.
-// Это необходимо, чтобы интегрировать SDK с системным логом Android (Logcat)
-// или Swift Console на iOS.
-package logging
+// НИКАКИХ build tags сверху — логгер чисто на Go.
 
-// LogSink — интерфейс, который должен реализовать принимающая сторона (Kotlin/Swift).
-// Он получает сообщения из Go-ядра через gomobile.
-//
-// Пример Kotlin-реализации:
-//
-//	class Hy2Logger : Hy2core.LogSink {
-//	    override fun Log(level: String, msg: String) {
-//	        Log.i("HY2", "[$level] $msg")
-//	    }
-//	}
-//
-//	Hy2core.SetLogger(Hy2Logger())
-//
-// После этого вызовы logI(), logE() и т.д. из Go будут появляться в Logcat.
-//
-// Аргументы метода:
-//   - level — текстовый уровень ("debug", "info", "warn", "error")
-//   - msg — сообщение
+// LogSink — внешний приёмник логов (Kotlin/Swift).
 type LogSink interface{ Log(level, msg string) }
 
 var (
-	sink     LogSink
-	logLevel = "info" // Текущий уровень фильтрации логов
-	order    = map[string]int{
-		"debug": 10,
-		"info":  20,
-		"warn":  30,
-		"error": 40,
-	}
+	Sink     LogSink
+	LogLevel = "info"
+	Order    = map[string]int{"debug": 10, "info": 20, "warn": 30, "error": 40}
 )
 
-// SetLogger регистрирует внешний лог-приёмник (Kotlin/Swift).
-//
-// После вызова этой функции все внутренние вызовы log*()
-// будут перенаправлены в sink.Log(level, msg).
-func SetLogger(s LogSink) { sink = s }
-
-// SetLogLevel устанавливает текущий уровень фильтрации логов.
-//
-// Допустимые уровни: "debug", "info", "warn", "error".
-// Все сообщения ниже текущего уровня будут игнорироваться.
-//
-// Пример:
-//
-//	SetLogLevel("debug") // включает все логи
+func SetLogger(s LogSink) { Sink = s }
 func SetLogLevel(level string) {
-	if _, ok := order[level]; ok {
-		logLevel = level
+	if _, ok := Order[level]; ok {
+		LogLevel = level
 	}
 }
 
-// log — базовая внутренняя функция отправки логов.
-//
-// Она проверяет наличие зарегистрированного sink и уровень фильтрации.
-// Если фильтр пропускает сообщение — оно передаётся в LogSink.Log().
-func log(level, msg string) {
-	if sink == nil {
+func Log(level, msg string) {
+	if Sink == nil {
 		return
 	}
-	if order[level] < order[logLevel] {
+	if Order[level] < Order[LogLevel] {
 		return
 	}
-	sink.Log(level, msg)
+	Sink.Log(level, msg)
 }
 
-// logD отправляет лог уровня DEBUG (диагностика, отладка).
-func logD(m string) { log("debug", m) }
+// Экспортируемые функции — вызывай их из других пакетов:
+func Debug(m string) { Log("debug", m) }
+func Info(m string)  { Log("info", m) }
+func Warn(m string)  { Log("warn", m) }
+func Error(m string) { Log("error", m) }
 
-// logI отправляет лог уровня INFO (стандартные сообщения).
-func logI(m string) { log("info", m) }
-
-// logW отправляет лог уровня WARN (предупреждения).
-func logW(m string) { log("warn", m) }
-
-// logE отправляет лог уровня ERROR (ошибки, сбои, panic-guard).
-func logE(m string) { log("error", m) }
+// (опционально) оставь алиасы, если где-то внутри самого пакета ссылались на них:
+func LogD(m string) { Debug(m) }
+func LogI(m string) { Info(m) }
+func LogW(m string) { Warn(m) }
+func LogE(m string) { Error(m) }

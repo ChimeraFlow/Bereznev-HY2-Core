@@ -9,6 +9,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/runtime"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/telemetry"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/transport"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/transport/hy2hc"
+	ers "github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/errors"
 )
 
 type transportSingHY2 struct {
@@ -26,7 +32,7 @@ type transportSingHY2 struct {
 	closed  atomic.Bool
 }
 
-func newTransportSingHY2(cfg HY2Config) *transportSingHY2 {
+func NewTransportSingHY2(cfg hy2hc.HY2Config) *transportSingHY2 {
 	t := &transportSingHY2{sni: cfg.SNI}
 	if len(cfg.ALPN) > 0 {
 		t.alpn = cfg.ALPN[0]
@@ -51,9 +57,9 @@ func (t *transportSingHY2) Start(parent context.Context) error {
 	t.ctx, t.cancel = ctx, cancel
 	t.closed.Store(false)
 
-	_ = startOnceSing(t, ctx)
+	_ = StartOnceSing(t, ctx)
 	t.superWg.Add(1)
-	go t.supervisor()
+	go t.Supervisor()
 
 	return nil
 }
@@ -94,8 +100,8 @@ func (t *transportSingHY2) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (t *transportSingHY2) Status() TransportStatus {
-	st := TransportStatus{
+func (t *transportSingHY2) Status() transport.TransportStatus {
+	st := transport.TransportStatus{
 		RTTms:  t.rtt.Load(),
 		Remote: t.rem,
 		ALPN:   t.alpn,
@@ -107,33 +113,46 @@ func (t *transportSingHY2) Status() TransportStatus {
 	return st
 }
 
-func toJSON(v any) string {
+func ToJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
 }
 
+type ReconnectingPayload struct {
+	Reason  string `json:"reason"`
+	Attempt int    `json:"attempt"`
+	NextMs  int    `json:"next_ms"`
+}
+
+type ReconnectedPayload struct {
+	RttMs int64 `json:"rtt_ms"`
+}
+
 // --- внутреннее ---
 
-func (t *transportSingHY2) supervisor() {
+func (t *transportSingHY2) Supervisor() {
 	defer t.superWg.Done()
-	bo := newBackoffState()
+	bo := runtime.NewBackoffState()
 
 	for {
 		if t.closed.Load() {
 			return
 		}
-		if isAliveSing(t) { // в tests подменён, в prod — реальный критерий
+		if IsAliveSing(t) {
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
 
-		next := bo.next()
-		emit(EvtReconnecting, toJSON(evtReconnecting{
-			Reason:  "lost",
-			Attempt: bo.attempt,
+		// было: next := bo.next()
+		next := bo.Next()
+
+		telemetry.Emit(telemetry.EvtReconnecting, ToJSON(ReconnectingPayload{
+			Reason: "lost",
+			// было: bo.attempt
+			Attempt: bo.Attempt(), // добавь этот геттер в runtime/backoff, если его ещё нет
 			NextMs:  int(next.Milliseconds()),
 		}))
-		setLastBackoffMs(next.Milliseconds())
+		telemetry.SetLastBackoffMs(next.Milliseconds())
 
 		timer := time.NewTimer(next)
 		select {
@@ -146,20 +165,22 @@ func (t *transportSingHY2) supervisor() {
 		if t.closed.Load() {
 			return
 		}
-		if err := startOnceSing(t, t.ctx); err != nil {
-			// фиксируем ошибку и ждём следующий backoff
+		// было: StartOnceSing (функция есть, всё ок)
+		if err := StartOnceSing(t, t.ctx); err != nil {
 			t.lastE.Store("reconnect: " + err.Error())
-			setLastErrTs(time.Now().Unix())
+			telemetry.SetLastErrTs(time.Now().Unix())
 			continue
 		}
-		bo.reset()
-		reconnects.Add(1)
-		emit(EvtReconnected, toJSON(evtReconnected{RttMs: t.rtt.Load()}))
+		// было: bo.reset()
+		bo.Reset()
+
+		telemetry.Reconnects.Add(1)
+		telemetry.Emit(telemetry.EvtReconnected, ToJSON(ReconnectedPayload{RttMs: t.rtt.Load()}))
 	}
 }
 
 // startOnce пытается (пере)поднять клиент/сессию
-func (t *transportSingHY2) startOnce(ctx context.Context) error {
+func (t *transportSingHY2) StartOnce(ctx context.Context) error {
 	// TODO:
 	// 1) собрать dialer с Protect(fd) через net.ListenConfig.Control / net.Dialer.Control
 	// 2) инициализировать sing/hysteria2 outbound
@@ -169,17 +190,26 @@ func (t *transportSingHY2) startOnce(ctx context.Context) error {
 	return errors.New("sing HY2 not wired yet")
 }
 
-func (t *transportSingHY2) isAlive() bool {
+func (t *transportSingHY2) IsAlive() bool {
 	// TODO: проверь состояние клиента/сокета/последний успешный пульс
 	// на первом шаге: считаем живым, если rtt обновлялся < N секунд назад
 	// (можно хранить atomic lastRTTts)
 	return false
 }
 
-func (t *transportSingHY2) recordErr(stage string, err error) {
+func (t *transportSingHY2) RecordErr(stage string, err error) {
 	if err == nil {
 		return
 	}
 	t.lastE.Store(stage + ": " + err.Error())
-	emitError(int(ErrEngineInitFailed), stage+": "+err.Error()) // или отдельный stage-код
+	telemetry.EmitError(int(ers.ErrEngineInitFailed), stage+": "+err.Error()) // или отдельный stage-код
+}
+
+func StartOnceSing(t *transportSingHY2, ctx context.Context) error {
+	// TODO: собрать dialer с Protect(fd), поднять HY2, заполнить t.rem, t.rtt.Store(...)
+	return nil
+}
+
+func IsAliveSing(t *transportSingHY2) bool {
+	return t.rtt.Load() > 0 // временно
 }

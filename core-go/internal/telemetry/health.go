@@ -1,4 +1,4 @@
-//go:build android || ios || mobile_skel
+// go:build android || ios || mobile_skel
 
 // Package mobile — мобильный слой SDK (gomobile bind).
 // Этот файл реализует системный модуль Health — точку доступа к состоянию ядра.
@@ -19,6 +19,10 @@ import (
 	"encoding/json"
 	"sync/atomic"
 	"time"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/telemetry"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/mobile"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/version"
 )
 
 // Health — структура состояния SDK.
@@ -50,51 +54,51 @@ type Health struct {
 
 // Глобальные счётчики (обновляются в tun2socks)
 var (
-	bytesIn    atomic.Uint64
-	bytesOut   atomic.Uint64
-	reconnects atomic.Uint32
-	quicRttMs  atomic.Int64 // последняя измеренная оценка
-	startUnix  atomic.Int64
-	sniValue   atomic.Value // string
-	alpnValue  atomic.Value // string
+	BytesIn    atomic.Uint64
+	BytesOut   atomic.Uint64
+	Reconnects atomic.Uint32
+	QuicRttMs  atomic.Int64 // последняя измеренная оценка
+	StartUnix  atomic.Int64
+	SniValue   atomic.Value // string
+	AlpnValue  atomic.Value // string
 
 	// ⬇️ новое
-	lastBackoffMs atomic.Int64
-	lastErrTs     atomic.Int64
+	LastBackoffMs atomic.Int64
+	LastErrTs     atomic.Int64
 )
 
 // BytesStats возвращает текущие счётчики трафика.
 // Используется HealthJSON() для вывода метрик.
 func BytesStats() (uint64, uint64) {
-	return bytesIn.Load(), bytesOut.Load()
+	return BytesIn.Load(), BytesOut.Load()
 }
 
-func setLastBackoffMs(ms int64) { lastBackoffMs.Store(ms) }
-func setLastErrTs(ts int64)     { lastErrTs.Store(ts) }
+func SetLastBackoffMs(ms int64) { LastBackoffMs.Store(ms) }
+func SetLastErrTs(ts int64)     { LastErrTs.Store(ts) }
 
 // (опционально)
 // ResetBytesStats сбрасывает счётчики — пригодится при Stop() или reload.
 
 func ResetBytesStats() {
-	bytesIn.Store(0)
-	bytesOut.Store(0)
-	reconnects.Store(0)
-	quicRttMs.Store(0)
+	BytesIn.Store(0)
+	BytesOut.Store(0)
+	Reconnects.Store(0)
+	QuicRttMs.Store(0)
 }
 
-func healthMarkStarted() {
-	startUnix.Store(time.Now().Unix())
+func HealthMarkStarted() {
+	StartUnix.Store(time.Now().Unix())
 }
 
-func healthMarkStopped() {
-	startUnix.Store(0)
+func HealthMarkStopped() {
+	StartUnix.Store(0)
 }
-func healthSetIdentity(sni, alpn string) {
+func HealthSetIdentity(sni, alpn string) {
 	if sni != "" {
-		sniValue.Store(sni)
+		SniValue.Store(sni)
 	}
 	if alpn != "" {
-		alpnValue.Store(alpn)
+		AlpnValue.Store(alpn)
 	}
 }
 
@@ -122,30 +126,30 @@ func healthSetIdentity(sni, alpn string) {
 func HealthJSON() string {
 	in, out := BytesStats()
 	h := Health{
-		Running:    IsRunning(),
-		Engine:     EngineID,
-		Version:    SdkVersion,
+		Running:    mobile.IsRunning(),
+		Engine:     version.EngineID,
+		Version:    version.SdkVersion,
 		BytesIn:    in,
 		BytesOut:   out,
-		Reconnects: reconnects.Load(),
-		QuicRttMs:  quicRttMs.Load(),
+		Reconnects: telemetry.Reconnects.Load(),
+		QuicRttMs:  QuicRttMs.Load(),
 	}
-	h.LastBackoffMs = lastBackoffMs.Load()
-	h.LastErrorTs = lastErrTs.Load()
-	if su := startUnix.Load(); su > 0 {
+	h.LastBackoffMs = LastBackoffMs.Load()
+	h.LastErrorTs = LastErrTs.Load()
+	if su := StartUnix.Load(); su > 0 {
 		now := time.Now().Unix()
 		if now > su {
 			h.UptimeS = now - su
 		}
 	}
 
-	if v := sniValue.Load(); v != nil {
+	if v := SniValue.Load(); v != nil {
 		if s, _ := v.(string); s != "" {
 			h.SNI = s
 		}
 	}
 
-	if v := alpnValue.Load(); v != nil {
+	if v := AlpnValue.Load(); v != nil {
 		if s, _ := v.(string); s != "" {
 			h.ALPN = s
 		}

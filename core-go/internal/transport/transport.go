@@ -1,4 +1,4 @@
-//go:build android || ios || mobile_skel
+// go:build android || ios || mobile_skel
 
 package transport
 

@@ -9,12 +9,12 @@ import (
 	"syscall"
 )
 
-func protectedPacketConn(ctx context.Context) (net.PacketConn, error) {
+func ProtectedPacketConn(ctx context.Context) (net.PacketConn, error) {
 	lc := net.ListenConfig{
 		Control: func(network, address string, c syscall.RawConn) error {
 			var ctrlErr error
 			if err := c.Control(func(fd uintptr) {
-				if !protectFD(int(fd)) {
+				if !ProtectFD(int(fd)) {
 					ctrlErr = errors.New("protect failed")
 				}
 			}); err != nil {
@@ -26,12 +26,12 @@ func protectedPacketConn(ctx context.Context) (net.PacketConn, error) {
 	return lc.ListenPacket(ctx, "udp", "0.0.0.0:0")
 }
 
-func protectedTCPDialer() *net.Dialer {
+func ProtectedTCPDialer() *net.Dialer {
 	return &net.Dialer{
 		Control: func(network, address string, c syscall.RawConn) error {
 			var ctrlErr error
 			if err := c.Control(func(fd uintptr) {
-				if !protectFD(int(fd)) {
+				if !ProtectFD(int(fd)) {
 					ctrlErr = errors.New("protect failed")
 				}
 			}); err != nil {

@@ -20,12 +20,12 @@ type backoffCfg struct {
 
 type backoffState struct {
 	cfg         backoffCfg
-	attempt     int
+	Attempt     int
 	failTimes   []time.Time
 	lastBackoff time.Duration
 }
 
-func newBackoffState() *backoffState {
+func NewBackoffState() *backoffState {
 	return &backoffState{
 		cfg: backoffCfg{
 			Base: 500 * time.Millisecond, Factor: 2.0, Max: 30 * time.Second,
@@ -35,7 +35,7 @@ func newBackoffState() *backoffState {
 	}
 }
 
-func (b *backoffState) next() time.Duration {
+func (b *backoffState) Next() time.Duration {
 	// flapping guard
 	now := time.Now()
 	b.failTimes = append(b.failTimes, now)
@@ -51,18 +51,18 @@ func (b *backoffState) next() time.Duration {
 	b.failTimes = b.failTimes[:n]
 
 	if len(b.failTimes) >= b.cfg.FlapN {
-		b.attempt = 0 // сбрасываем рост
+		b.Attempt = 0 // сбрасываем рост
 		b.lastBackoff = b.cfg.Cool
 		return b.lastBackoff
 	}
 
 	// expo
 	var d time.Duration
-	if b.attempt == 0 {
+	if b.Attempt == 0 {
 		d = b.cfg.Base
 	} else {
 		f := 1.0
-		for i := 0; i < b.attempt; i++ {
+		for i := 0; i < b.Attempt; i++ {
 			f *= b.cfg.Factor
 		}
 		d = time.Duration(float64(b.cfg.Base) * f)
@@ -76,20 +76,20 @@ func (b *backoffState) next() time.Duration {
 	d = time.Duration(float64(d) * j)
 
 	b.lastBackoff = d
-	b.attempt++
+	b.Attempt++
 	return d
 }
 
-func (b *backoffState) reset() {
-	b.attempt = 0
+func (b *backoffState) Reset() {
+	b.Attempt = 0
 	b.lastBackoff = 0
 }
 
-func (b *backoffState) last() time.Duration { return b.lastBackoff }
+func (b *backoffState) Last() time.Duration { return b.lastBackoff }
 
 // waitNext blocks until either context done or duration elapsed
 func (b *backoffState) waitNext(ctx context.Context) bool {
-	d := b.next()
+	d := b.Next()
 	timer := time.NewTimer(d)
 	defer timer.Stop()
 	select {

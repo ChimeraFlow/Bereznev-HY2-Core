@@ -1,4 +1,4 @@
-//go:build android || ios || mobile_skel
+// go:build android || ios || mobile_skel
 
 // Package mobile — мобильный слой SDK (gomobile bind).
 // Этот файл реализует систему событий SDK — EventSink и emit(),
@@ -59,7 +59,7 @@ func SetEventSink(s EventSink) { evt = s }
 //   - data — JSON-полезная нагрузка (может быть "{}").
 //
 // Безопасна для вызова из любых горутин.
-func emit(name, data string) {
+func Emit(name, data string) {
 	if evt != nil {
 		evt.OnEvent(name, data)
 	}
@@ -104,8 +104,8 @@ type EventSinkFunc func(name, payload string)
 // Пример:
 //
 //	emitError(1001, "connection timeout")
-func emitError(code int, msg string) {
-	emit(EvtError, fmt.Sprintf(`{"code":%d,"msg":%q}`, code, msg))
+func EmitError(code int, msg string) {
+	Emit(EvtError, fmt.Sprintf(`{"code":%d,"msg":%q}`, code, msg))
 }
 
 // emitState — отправляет простые служебные события
@@ -117,6 +117,6 @@ func emitError(code int, msg string) {
 // Пример:
 //
 //	emitState(EvtStarted)
-func emitState(event string) {
-	emit(event, "{}")
+func EmitState(event string) {
+	Emit(event, "{}")
 }
