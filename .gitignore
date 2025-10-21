@@ -54,7 +54,7 @@ Thumbs.db
 go.work
 go.work.sum
 bin/
-*.aar
+g*.aar
 *.jar
 *.klib
 

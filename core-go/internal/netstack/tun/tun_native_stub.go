@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+
+	"github.com/apernet/quic-go/logging"
 )
 
 var (
@@ -18,20 +20,20 @@ func StartWithTun(tunFd int, mtu int) string {
 	defer tunMu.Unlock()
 
 	if tunStarted.Load() {
-		logI("sing-tun already running")
+		logging.logI("sing-tun already running")
 		return ""
 	}
 	if mtu <= 0 {
 		mtu = 1500
 	}
 	tunStarted.Store(true)
-	logI(fmt.Sprintf("sing-tun created (mtu=%d)", mtu))
-	emit(EvtStarted, `{"path":"tun","engine":"sing-tun"}`)
+	logging.logI(fmt.Sprintf("sing-tun created (mtu=%d)", mtu))
+	logging.emit(EvtStarted, `{"path":"tun","engine":"sing-tun"}`)
 	return ""
 }
 
 func SetMTU(mtu int) {
-	logI(fmt.Sprintf("SetMTU requested: %d (stub, no live update)", mtu))
+	logging.logI(fmt.Sprintf("SetMTU requested: %d (stub, no live update)", mtu))
 }
 
 func stopSingTun() {
@@ -41,6 +43,6 @@ func stopSingTun() {
 		return
 	}
 	tunStarted.Store(false)
-	emit(EvtStopped, `{"path":"tun","engine":"sing-tun"}`)
-	logI("sing-tun stopped")
+	logging.Emit(EvtStopped, `{"path":"tun","engine":"sing-tun"}`)
+	logging.LogI("sing-tun stopped")
 }

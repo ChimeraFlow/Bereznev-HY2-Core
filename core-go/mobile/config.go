@@ -17,7 +17,7 @@ import sjson "github.com/sagernet/sing/common/json"
 var (
 	// cfgRaw — последний успешно применённый конфиг в виде байт.
 	// Он хранится в памяти, чтобы можно было быстро получить текущее состояние.
-	cfgRaw []byte
+	CfgRaw []byte
 )
 
 // cfgSet выполняет валидацию и сохраняет конфигурацию SDK.
@@ -39,12 +39,12 @@ var (
 //	if err != nil {
 //	    log.Println("invalid config:", err)
 //	}
-func cfgSet(jsonStr string) error {
+func CfgSet(jsonStr string) error {
 	// валидация расширенным парсером (комментарии, расширенные поля и т.п.)
 	if _, err := sjson.UnmarshalExtended[map[string]any]([]byte(jsonStr)); err != nil {
 		return err
 	}
-	cfgRaw = []byte(jsonStr)
+	CfgRaw = []byte(jsonStr)
 	return nil
 }
 
@@ -58,6 +58,6 @@ func cfgSet(jsonStr string) error {
 //
 //	current := string(cfgGet())
 //	fmt.Println("Active config:", current)
-func cfgGet() []byte {
-	return append([]byte(nil), cfgRaw...)
+func CfgGet() []byte {
+	return append([]byte(nil), CfgRaw...)
 }

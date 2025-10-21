@@ -1,8 +1,12 @@
-// go:build android || ios || mobile_skel
+//go:build android || ios || mobile_skel
 
 package protect
 
-import "sync"
+import (
+	"sync"
+
+	logpkg "github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/logging"
+)
 
 var netHooks struct {
 	mu      sync.RWMutex
@@ -15,7 +19,7 @@ func SetProtectHook(fn func(fd int) bool) {
 	netHooks.mu.Lock()
 	defer netHooks.mu.Unlock()
 	netHooks.protect = fn
-	logI("Protect hook registered")
+	logpkg.Info("Protect hook registered")
 }
 
 // 🔄 Backward-compat shim для старых тестов / API
@@ -30,12 +34,12 @@ func SetNetHooks(h interface{}) {
 	default:
 		netHooks.protect = nil
 	}
-	logI("Legacy SetNetHooks() adapter called")
+	logpkg.Info("Legacy SetNetHooks() adapter called")
 }
 
 // protectFD — универсальная обёртка, вызываемая из ядра.
 // Возвращает true, если fd защищён успешно.
-func protectFD(fd int) bool {
+func ProtectFD(fd int) bool {
 	netHooks.mu.RLock()
 	defer netHooks.mu.RUnlock()
 	if netHooks.protect == nil {
@@ -43,7 +47,7 @@ func protectFD(fd int) bool {
 	}
 	ok := netHooks.protect(fd)
 	if !ok {
-		logW("protectFD failed")
+		logpkg.Warn("protectFD failed")
 	}
 	return ok
 }

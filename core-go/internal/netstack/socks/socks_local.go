@@ -10,6 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/netstack/protect"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/runtime"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/telemetry"
+	logpkg "github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/logging"
+
 	socks5 "github.com/armon/go-socks5"
 )
 
@@ -31,14 +36,14 @@ type countingConn struct{ net.Conn }
 func (c *countingConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
 	if n > 0 {
-		bytesIn.Add(uint64(n))
+		telemetry.BytesIn.Add(uint64(n))
 	}
 	return n, err
 }
 func (c *countingConn) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
 	if n > 0 {
-		bytesOut.Add(uint64(n))
+		telemetry.BytesOut.Add(uint64(n))
 	}
 	return n, err
 }
@@ -50,7 +55,7 @@ func StartLocalSocks(host string, port int) string {
 	defer socksMu.Unlock()
 
 	if socksRunning {
-		logI("SOCKS already running at " + socksAddr)
+		logpkg.LogI("SOCKS already running at " + socksAddr)
 		return ""
 	}
 	if host == "" {
@@ -69,7 +74,7 @@ func StartLocalSocks(host string, port int) string {
 		elapsed := time.Since(start).Milliseconds()
 
 		if err != nil {
-			logW("SOCKS dial fail: " + err.Error())
+			logpkg.LogW("SOCKS dial fail: " + err.Error())
 			return nil, err
 		}
 
@@ -77,38 +82,38 @@ func StartLocalSocks(host string, port int) string {
 		if tcpConn, ok := c.(*net.TCPConn); ok {
 			raw, _ := tcpConn.File()
 			if raw != nil {
-				protectFD(int(raw.Fd()))
+				protect.ProtectFD(int(raw.Fd()))
 				_ = raw.Close() // закрываем временную дубликат-дескриптор
 			}
 		}
 
-		quicRttMs.Store(elapsed)
-		reconnects.Add(1)
+		telemetry.QuicRttMs.Store(elapsed)
+		telemetry.Reconnects.Add(1)
 		return &countingConn{Conn: c}, nil
 	}
 
 	conf := &socks5.Config{Dial: dial}
 	srv, err := socks5.New(conf)
 	if err != nil {
-		logE("SOCKS init failed: " + err.Error())
+		logpkg.LogE("SOCKS init failed: " + err.Error())
 		return "socks init failed: " + err.Error()
 	}
 
 	ln, err := net.Listen("tcp", socksAddr)
 	if err != nil {
-		logE("SOCKS listen failed: " + err.Error())
+		logpkg.LogE("SOCKS listen failed: " + err.Error())
 		return "socks listen failed: " + err.Error()
 	}
 	socksSrv = srv
 	socksLn = ln
 	socksRunning = true
 
-	logI(fmt.Sprintf("SOCKS listening at %s", socksAddr))
-	emit("socks_started", fmt.Sprintf(`{"addr":%q}`, socksAddr))
+	logpkg.LogI(fmt.Sprintf("SOCKS listening at %s", socksAddr))
+	telemetry.Emit("socks_started", fmt.Sprintf(`{"addr":%q}`, socksAddr))
 
-	safeGo(func() {
+	runtime.SafeGo(func() {
 		if err := srv.Serve(ln); err != nil {
-			logI("SOCKS serve stopped: " + err.Error())
+			logpkg.LogI("SOCKS serve stopped: " + err.Error())
 		}
 	})
 	return ""
@@ -127,8 +132,8 @@ func StopLocalSocks() {
 	socksSrv = nil
 	socksRunning = false
 
-	emit("socks_stopped", "{}")
-	logI("SOCKS stopped")
+	telemetry.Emit("socks_stopped", "{}")
+	logpkg.LogI("SOCKS stopped")
 }
 
 func LocalSocksAddr() string {

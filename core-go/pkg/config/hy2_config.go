@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/mobile"
 )
 
 type HY2Config struct {
@@ -20,7 +22,7 @@ type HY2Config struct {
 	Mode         string   `json:"mode,omitempty"`
 }
 
-func (c *HY2Config) defaults() {
+func (c *HY2Config) Defaults() {
 	if len(c.ALPN) == 0 {
 		c.ALPN = []string{"h3"}
 	}
@@ -32,7 +34,7 @@ func (c *HY2Config) defaults() {
 	}
 }
 
-func (c *HY2Config) validate() error {
+func (c *HY2Config) Validate() error {
 	if c.Server == "" || !strings.Contains(c.Server, ":") {
 		return errors.New("server must be host:port")
 	}
@@ -46,17 +48,17 @@ func (c *HY2Config) validate() error {
 // достает из него минимальный outbound:hysteria2 (Server/Password/SNI/ALPN/...).
 // На первом шаге — простой unmarshal всей cfgRaw в HY2Config.
 // Если у тебя сложная схема, позже можно вытащить поля из "outbounds".
-func parseHY2Config() (HY2Config, error) {
+func ParseHY2Config() (HY2Config, error) {
 	var hc HY2Config
-	if len(cfgRaw) == 0 {
+	if len(mobile.CfgRaw) == 0 {
 		return hc, errors.New("empty config")
 	}
-	if err := jsonUnmarshal(cfgRaw, &hc); err != nil {
+	if err := JsonUnmarshal(mobile.CfgRaw, &hc); err != nil {
 		return hc, err
 	}
-	hc.defaults()
+	hc.Defaults()
 	hy2TestFixup(&hc) // ⬅️ добавь эту строку
-	return hc, hc.validate()
+	return hc, hc.Validate()
 }
 
-func jsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }
+func JsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }

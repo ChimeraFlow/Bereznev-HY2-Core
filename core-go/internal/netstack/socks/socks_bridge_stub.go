@@ -5,6 +5,9 @@ package socks
 import (
 	"fmt"
 	"sync/atomic"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/telemetry"
+	logpkg "github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/logging"
 )
 
 var (
@@ -13,17 +16,17 @@ var (
 
 // StartTun2Socks — тестовый stub-раннер: только логи/события/флаг.
 func StartTun2Socks(tunFd int, socksHost string, socksPort int) string {
-	logI("🧩 STUB version StartTun2Socks() called")
+	logpkg.LogI("🧩 STUB version StartTun2Socks() called")
 	if t2sRunning.Load() {
-		logI("tun2socks already running")
+		logpkg.LogI("tun2socks already running")
 		return ""
 	}
 	addr := fmt.Sprintf("%s:%d", socksHost, socksPort)
-	logI("starting tun2socks → " + addr)
+	logpkg.LogI("starting tun2socks → " + addr)
 
 	t2sRunning.Store(true)
-	logI("tun2socks started successfully")
-	emit("tun2socks_started", fmt.Sprintf(`{"socks":"%s"}`, addr))
+	logpkg.LogI("tun2socks started successfully")
+	telemetry.Emit("tun2socks_started", fmt.Sprintf(`{"socks":"%s"}`, addr))
 	return ""
 }
 
@@ -32,6 +35,6 @@ func StopTun2Socks() {
 		return
 	}
 	t2sRunning.Store(false)
-	emit("tun2socks_stopped", "{}")
-	logI("tun2socks stopped")
+	telemetry.Emit("tun2socks_stopped", "{}")
+	logpkg.LogI("tun2socks stopped")
 }

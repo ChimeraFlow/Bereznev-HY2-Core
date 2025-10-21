@@ -2,7 +2,7 @@
 
 package transport
 
-func selectTransport(cfg HY2Config) Transport {
+func SelectTransport(cfg HY2Config) Transport {
 	switch cfg.Engine {
 	case "hc", "hysteria_core":
 		return newTransportHC(cfg) // определён в файлах под (android||ios)&&hc

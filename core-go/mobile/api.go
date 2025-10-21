@@ -13,17 +13,26 @@
 // и защищены внутренним sync.Mutex.
 package mobile
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/config"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/errors"
+	logpkg "github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/pkg/logging"
+
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/runtime"
+	"github.com/ChimeraFlow/Bereznev-HY2-Core/core-go/internal/telemetry"
+)
 
 var (
 	// mu защищает глобальное состояние (started, cfgRaw и пр.)
-	mu sync.Mutex
+	Mu sync.Mutex
 
 	// started — признак запущенного ядра (skeleton).
-	started bool
+	Started bool
 
 	// sdkName/sdVersion/engineID — метаданные SDK, видимые в Version().
-	sdkName = "Bereznev-HY2-Core"
+	SdkName = "Bereznev-HY2-Core"
 )
 
 // Коды ошибок для мобильных биндингов (удобны для Kotlin/Swift):
@@ -39,28 +48,28 @@ var (
 //
 // Потокобезопасно.
 func Start(configJSON string) string {
-	mu.Lock()
-	defer mu.Unlock()
+	Mu.Lock()
+	defer Mu.Unlock()
 
 	// идемпотентность: повторный Start не считается ошибкой
-	if started {
+	if Started {
 		return ""
 	}
 
 	// 1) валидируем и сохраняем конфиг
-	if err := cfgSet(configJSON); err != nil {
+	if err := CfgSet(configJSON); err != nil {
 		return "invalid config: " + err.Error()
 	}
 
 	// 2) поднимаем рантайм (sing/hy2 транспорт и пр.)
-	if err := runtimeStart(); err != nil {
-		emitError(int(ErrEngineInitFailed), err.Error())
+	if err := runtime.RuntimeStart(); err != nil {
+		telemetry.EmitError(int(errors.ErrEngineInitFailed), err.Error())
 		return "engine init failed: " + err.Error()
 	}
 
-	started = true
-	healthMarkStarted()
-	logI("HY2 core started")
+	Started = true
+	telemetry.HealthMarkStarted()
+	logpkg.LogI("HY2 core started")
 	return ""
 }
 
@@ -70,23 +79,23 @@ func Start(configJSON string) string {
 //
 // Коды возврата: ErrOK, ErrAlreadyRunning, ErrInvalidConfig, ErrEngineInitFailed (на будущее).
 // Потокобезопасно.
-func StartWithCode(configJSON string) ErrCode {
-	mu.Lock()
-	defer mu.Unlock()
+func StartWithCode(configJSON string) errors.ErrCode {
+	Mu.Lock()
+	defer Mu.Unlock()
 
-	if started {
-		return ErrOK // считаем idempotent запуск «не ошибкой»
+	if Started {
+		return errors.ErrOK // считаем idempotent запуск «не ошибкой»
 	}
-	if err := cfgSet(configJSON); err != nil {
-		return ErrInvalidConfig
+	if err := CfgSet(configJSON); err != nil {
+		return errors.ErrInvalidConfig
 	}
-	if err := runtimeStart(); err != nil {
-		emitError(int(ErrEngineInitFailed), err.Error())
-		return ErrEngineInitFailed
+	if err := runtime.RuntimeStart(); err != nil {
+		telemetry.EmitError(int(errors.ErrEngineInitFailed), err.Error())
+		return errors.ErrEngineInitFailed
 	}
-	started = true
-	logI("HY2 core started; config accepted")
-	return ErrOK
+	Started = true
+	logpkg.LogI("HY2 core started; config accepted")
+	return errors.ErrOK
 }
 
 // Reload безопасно применяет новый конфиг во время работы.
@@ -94,53 +103,53 @@ func StartWithCode(configJSON string) ErrCode {
 // В skeleton-режиме просто заменяет сохранённый конфиг и шлёт "reloaded".
 // Потокобезопасно.
 func Reload(configJSON string) string {
-	mu.Lock()
-	defer mu.Unlock()
+	Mu.Lock()
+	defer Mu.Unlock()
 
 	// 1) валидируем и сохраняем конфиг (если невалиден — ничего не меняем)
-	if err := cfgSet(configJSON); err != nil {
+	if err := CfgSet(configJSON); err != nil {
 		return "invalid config: " + err.Error()
 	}
 	// 2) если не запущено — просто отдадим событие перезагрузки конфигурации
-	if !started {
-		emit(EvtReloaded, "{}")
+	if !Started {
+		telemetry.Emit(telemetry.EvtReloaded, "{}")
 		return ""
 	}
 
 	// 3) перезапускаем рантайм по новому конфигу
 	// 3) если новый конфиг не задаёт HY2 — не трогаем транспорт
-	if _, err := parseHY2Config(); err != nil {
-		emit(EvtReloaded, "{}")
-		logI("config reloaded (no HY2 changes)")
+	if _, err := config.ParseHY2Config(); err != nil {
+		telemetry.Emit(telemetry.EvtReloaded, "{}")
+		logpkg.LogI("config reloaded (no HY2 changes)")
 		return ""
 	}
 	// 4) иначе — перезапускаем рантайм
-	runtimeStop()
-	if err := runtimeStart(); err != nil {
-		emitError(int(ErrEngineInitFailed), err.Error())
-		started = false
+	runtime.RuntimeStop()
+	if err := runtime.RuntimeStart(); err != nil {
+		telemetry.EmitError(int(errors.ErrEngineInitFailed), err.Error())
+		Started = false
 		return "engine init failed: " + err.Error()
 	}
-	started = true
-	emit(EvtReloaded, "{}")
-	logI("HY2 core reloaded")
+	Started = true
+	telemetry.Emit(telemetry.EvtReloaded, "{}")
+	logpkg.LogI("HY2 core reloaded")
 	return ""
 }
 
 // Stop останавливает ядро (в skeleton — только снимает флаг started).
 // Эмитит событие "stopped". Потокобезопасно.
 func Stop() {
-	mu.Lock()
-	defer mu.Unlock()
+	Mu.Lock()
+	defer Mu.Unlock()
 
-	if !started {
+	if !Started {
 		return
 	}
-	runtimeStop()
-	started = false
-	healthMarkStopped()
-	emit("stopped", "{}")
-	logI("HY2 core stopped")
+	runtime.RuntimeStop()
+	Started = false
+	telemetry.HealthMarkStopped()
+	telemetry.Emit("stopped", "{}")
+	logpkg.LogI("HY2 core stopped")
 }
 
 // Status возвращает строковый статус: "running" или "stopped".
@@ -156,7 +165,7 @@ func Status() string {
 // IsRunning — булев вариант Status(); пригодится в JNI/Swift мостах.
 // Потокобезопасно.
 func IsRunning() bool {
-	mu.Lock()
-	defer mu.Unlock()
-	return started
+	Mu.Lock()
+	defer Mu.Unlock()
+	return Started
 }
